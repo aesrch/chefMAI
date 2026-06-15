@@ -1,5 +1,8 @@
 package com.example
 
+import com.example.db.*
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.transactions.transaction
 import io.ktor.server.application.*
 import org.jetbrains.exposed.sql.Database
 import io.github.cdimascio.dotenv.dotenv
@@ -17,4 +20,8 @@ fun Application.configureDatabase() {
         user = dbUser,
         password = dbPassword
     )
+
+    transaction {
+        SchemaUtils.create(AccTable, RcpTable, RatingTable, ImgTable)
+    }
 }

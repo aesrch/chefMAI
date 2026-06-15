@@ -10,10 +10,15 @@ import com.example.routes.*
 import com.example.routes.detectionRoutes
 import com.example.client.YoloClient
 import com.example.service.YoloService
+import com.example.service.MetricsService
+import com.example.repository.RcpRepository
 
 fun Application.configureRouting() {
     val yoloClient = YoloClient() 
     val yoloService = YoloService(yoloClient)
+
+    val rcpRepository = RcpRepository()
+    val metricsService = MetricsService(rcpRepository)
 
     routing {
         get("/") {
@@ -56,6 +61,9 @@ fun Application.configureRouting() {
 
         //detection
         detectionRoutes(yoloService)
+
+        //metrics evaluation
+        metricsRoutes(metricsService)
 
     }
 }

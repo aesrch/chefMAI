@@ -1,0 +1,76 @@
+Metrics Evaluation Module - File Overview
+============================================
+
+The Metrics Evaluation module computes three quantitative formulas from
+the proposal to measure recommendation system effectiveness:
+
+  1. Suitability Rate    = Suitable Recommendations / Total Recommendations
+  2. Precision@K         = Relevant Recipes in Top K / K
+  3. Ingredient Match Score = Available Ingredients Used / Total Ingredients Required
+
+All metrics are computed on-the-fly from existing recipe data — no new
+database tables required.
+
+Files Added:
+------------
+
+1. src/main/kotlin/com/example/dto/metrics/MetricsRequest.kt
+   - Request DTO for the POST /metrics/evaluate endpoint.
+   - Fields:
+       recipeIDs (List<String>)  - recipes to evaluate
+       userIngredients (List<String>) - what the user has in their pantry
+       k (Int, default 5)        - top-K value for Precision@K
+
+2. src/main/kotlin/com/example/dto/metrics/MetricsResponse.kt
+   - Response DTO returned by /metrics/evaluate.
+   - Contains:
+       suitabilityRate      - suitableRecipes / totalRecipes (rounded 2 dec)
+       precisionAtK         - relevant in top-K / K (rounded 2 dec)
+       ingredientMatchScore - average across all recipes (rounded 2 dec)
+       k, totalRecipes, relevantRecipes
+       recipes              - per-recipe breakdown with individual
+                              ingredientMatchScore and isSuitable flag
+
+3. src/main/kotlin/com/example/service/MetricsService.kt
+   - Core business logic.
+   - evaluate(request):
+     1. Fetches each recipe by ID from the database via RcpRepository.
+     2. For each recipe, calculates Ingredient Match Score:
+          matched ingredients / total recipe ingredients
+          Uses contains-based fuzzy matching (ri.contains(ui) or ui.contains(ri)).
+     3. A recipe is "suitable" if ingredientMatchScore >= 0.5 (50% match).
+     4. Suitability Rate = suitableRecipes / totalRecipes.
+     5. Precision@K = sort recipes by match score descending,
+          take top K, count relevant (suitable) ones, divide by K.
+     6. Returns all three metrics plus per-recipe details list.
+
+4. src/main/kotlin/com/example/routes/MetricsRoutes.kt
+   - Defines the POST /metrics/evaluate API endpoint.
+   - Accepts MetricsRequest JSON body.
+   - Validates that recipeIDs and userIngredients are not empty.
+   - Returns the MetricsResponse JSON on success.
+
+5. src/main/kotlin/com/example/Routing.kt (modified)
+   - Instantiates MetricsService with RcpRepository.
+   - Registers the metricsRoutes() route group at application startup.
+
+Dependencies:
+-------------
+- RcpRepository (existing) - to fetch recipes by ID from the database.
+- No new database tables needed.
+
+Usage:
+------
+  POST http://localhost:8080/metrics/evaluate
+  Body (JSON):
+  {
+    "recipeIDs": ["rcp-a1b2c3", "rcp-d4e5f6"],
+    "userIngredients": ["chicken", "rice", "garlic"],
+    "k": 5
+  }
+
+Formula Reference (from proposal):
+----------------------------------
+  Suitability Rate = # of Suitable Recommendations / Total Recommendations
+  Precision@K = Relevant Recipes in Top K / K
+  Ingredient Match Score = Available Ingredients Used / Total Ingredients Required
