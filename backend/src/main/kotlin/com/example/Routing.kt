@@ -10,6 +10,8 @@ import com.example.routes.*
 import com.example.routes.detectionRoutes
 import com.example.client.YoloClient
 import com.example.service.YoloService
+import com.example.routes.substitutionRoutes
+import com.example.service.SubstitutionService
 
 fun Application.configureRouting() {
     val yoloClient = YoloClient() 
@@ -56,6 +58,6 @@ fun Application.configureRouting() {
 
         //detection
         detectionRoutes(yoloService)
-
+        substitutionRoutes(SubstitutionService())
     }
 }
