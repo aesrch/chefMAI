@@ -4,14 +4,66 @@ import {
   Bookmark, Sparkles, CheckCircle, AlertCircle, ArrowLeft, Scan,
   ChefHat, ThumbsUp, Upload, Filter, SlidersHorizontal,
 } from "lucide-react";
-import { RECIPES, Recipe } from "../data/recipes";
+
+const API_BASE = "http://localhost:8080";
 
 type Phase = "input" | "scanning" | "results" | "cooking";
 
-interface MatchedRecipe extends Recipe {
+// Backend ScoredRecipe shape from POST /recommend
+interface ScoredRecipe {
+  rcpId: string;
+  accId: string;
+  name: string;
+  ingredients: string[];
+  steps: string[];
+  img: string;
+  genre: string;
+  description: string;
+  amount: string[];
+  ingredientMatchScore: number;
+  nbSuitabilityScore: number;
+  preferenceScore: number;
+  finalScore: number;
+  matchedIngredients: string[];
+  missingIngredients: string[];
+  substitutions: Record<string, SubstitutionDto[]>;
+}
+
+interface SubstitutionDto {
+  subId: string;
+  originalName: string;
+  substituteName: string;
+  ratio: string | null;
+  notes: string | null;
+  category: string | null;
+  confidence: number;
+}
+
+// Legacy MatchedRecipe kept for cooking view compatibility
+interface MatchedRecipe {
+  id: number;
+  rcpId: string;
+  name: string;
+  description: string;
+  ingredients: { name: string; amount: string }[];
+  steps: string[];
+  img: string;
+  genre: string;
+  time: number;
+  calories: number;
+  servings: number;
+  difficulty: "Easy" | "Medium" | "Hard";
+  rating: number;
+  chef: string;
+  prereqNote?: string;
   matchScore: number;
   matchedIngredients: string[];
   missingIngredients: string[];
+  substitutions: Record<string, SubstitutionDto[]>;
+  ingredientMatchScore: number;
+  nbSuitabilityScore: number;
+  preferenceScore: number;
+  finalScore: number;
 }
 
 interface KitchenScreenProps {
@@ -19,18 +71,8 @@ interface KitchenScreenProps {
   onToggleFavorite: (id: number) => void;
 }
 
-// Simulated camera-detected ingredients for the photo scan
-const SCAN_DETECTED = ["garlic", "butter", "lemon", "eggs", "flour", "pasta", "parmesan"];
-
-// Smart pantry substitution formulas
-const PANTRY_SUBS: Record<string, { formula: string; needs: string[] }> = {
-  "Buttermilk":      { formula: "Milk + Lemon Juice (1 cup + 1 tbsp)", needs: ["milk", "lemon"] },
-  "Heavy cream":     { formula: "Butter + Milk (⅓ cup + ¾ cup)", needs: ["butter", "milk"] },
-  "Sour cream":      { formula: "Greek Yogurt 1:1", needs: ["yogurt"] },
-  "Breadcrumbs":     { formula: "Toasted bread, blended", needs: ["bread"] },
-  "Cake flour":      { formula: "All-purpose flour – 2 tbsp cornstarch", needs: ["flour"] },
-  "Egg":             { formula: "3 tbsp aquafaba or flax egg", needs: [] },
-};
+// Smart ingredient emoji map
+const SCAN_DETECTED: string[] = []; // No longer hardcoded — comes from real YOLO API
 
 const INGREDIENT_EMOJI: Record<string, string> = {
   garlic: "🧄", onion: "🧅", "olive oil": "🫒", butter: "🧈", eggs: "🥚",
@@ -44,27 +86,57 @@ function getEmoji(ing: string) {
   return key ? INGREDIENT_EMOJI[key] : "🥘";
 }
 
-function computeMatch(recipe: Recipe, userIngredients: string[]): { score: number; matched: string[]; missing: string[] } {
-  const matched: string[] = [];
-  const missing: string[] = [];
-  for (const ri of recipe.ingredients) {
-    const found = userIngredients.some(
-      ui => ri.name.toLowerCase().includes(ui.toLowerCase()) || ui.toLowerCase().includes(ri.name.toLowerCase().split(" ")[0])
-    );
-    if (found) matched.push(ri.name);
-    else missing.push(ri.name);
-  }
-  return { score: matched.length / recipe.ingredients.length, matched, missing };
+/**
+ * Convert a backend ScoredRecipe to a MatchedRecipe for the cooking view.
+ * Fills in defaults for fields not returned by the API.
+ */
+function scoredToMatched(s: ScoredRecipe, idx: number): MatchedRecipe {
+  return {
+    id: idx,
+    rcpId: s.rcpId,
+    name: s.name,
+    description: s.description,
+    ingredients: s.ingredients.map((name, i) => ({ name, amount: s.amount[i] ?? "" })),
+    steps: s.steps,
+    img: s.img || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop",
+    genre: s.genre,
+    time: 30,           // Default — backend doesn't store cook time yet
+    calories: 400,      // Default — backend doesn't store calories yet
+    servings: 2,
+    difficulty: "Medium" as const,
+    rating: 4.0,
+    chef: "Chef MAI",
+    matchScore: s.ingredientMatchScore,
+    matchedIngredients: s.matchedIngredients,
+    missingIngredients: s.missingIngredients,
+    substitutions: s.substitutions,
+    ingredientMatchScore: s.ingredientMatchScore,
+    nbSuitabilityScore: s.nbSuitabilityScore,
+    preferenceScore: s.preferenceScore,
+    finalScore: s.finalScore,
+  };
 }
 
-function getPantrySwap(missingName: string, userIngredients: string[]): string | null {
-  for (const [subName, sub] of Object.entries(PANTRY_SUBS)) {
-    if (missingName.toLowerCase().includes(subName.toLowerCase()) || subName.toLowerCase().includes(missingName.toLowerCase().split(" ")[0])) {
-      if (sub.needs.length === 0) return sub.formula;
-      if (sub.needs.every(n => userIngredients.some(ui => ui.toLowerCase().includes(n)))) return sub.formula;
-    }
+/** Track a user interaction with the backend (fire-and-forget) */
+async function trackInteraction(rcpId: string, genre: string, interaction: string) {
+  try {
+    await fetch(`${API_BASE}/preferences/track`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rcpId, genre, interaction }),
+    });
+  } catch {
+    // Silently fail — preference tracking is best-effort
   }
-  return null;
+}
+
+/** Get pantry substitution hint from backend-returned substitutions */
+function getPantrySwap(missingName: string, substitutions: Record<string, SubstitutionDto[]>): string | null {
+  const subs = substitutions[missingName];
+  if (!subs || subs.length === 0) return null;
+  const best = subs[0];
+  return best.ratio ? `${best.substituteName} (${best.ratio})` : best.substituteName;
 }
 
 const DIFFICULTY_ORDER = { Easy: 0, Medium: 1, Hard: 2 };
@@ -86,7 +158,93 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
   const [filterZeroMissing, setFilterZeroMissing] = useState(false);
   const [filterNoPrep, setFilterNoPrep] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageFile(file: File) {
+    setPhase("scanning");
+    setScanProgress(5);
+    setScanStage("Uploading image...");
+
+    let simulatedProgress = 5;
+    const progressInterval = setInterval(() => {
+      simulatedProgress = Math.min(simulatedProgress + 8, 92);
+      setScanProgress(simulatedProgress);
+      if (simulatedProgress < 30) {
+        setScanStage("Uploading image...");
+      } else if (simulatedProgress < 60) {
+        setScanStage("Detecting food items...");
+      } else if (simulatedProgress < 80) {
+        setScanStage("Extracting ingredients...");
+      } else {
+        setScanStage("Running recommendation engine...");
+      }
+    }, 200);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const res = await fetch(`${API_BASE}/detection/recommend`, {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setScanProgress(100);
+      setScanStage("Scan complete!");
+
+      if (!res.ok) {
+        if (res.status === 503) {
+          throw new Error("Object detection service is currently offline. Please enter ingredients manually.");
+        }
+        throw new Error(`Server returned error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const detected = data.detectedIngredients ?? [];
+      const scored: ScoredRecipe[] = data.recommendation?.recipes ?? [];
+      const matched: MatchedRecipe[] = scored.map((s, idx) => scoredToMatched(s, idx));
+
+      setTimeout(() => {
+        if (detected.length === 0) {
+          alert("No ingredients were detected in the image. Please enter them manually.");
+          setPhase("input");
+        } else {
+          setIngredients(detected);
+          setResults(matched);
+          setPhase("results");
+        }
+      }, 500);
+
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      setTimeout(() => {
+        alert(err.message || "Failed to analyze image. Please try again.");
+        setPhase("input");
+      }, 500);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      handleImageFile(e.target.files[0]);
+    }
+  }
+
+  function triggerFileSelect() {
+    fileInputRef.current?.click();
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleImageFile(e.dataTransfer.files[0]);
+    }
+  }
 
   function addIngredient(name: string) {
     const trimmed = name.trim();
@@ -107,59 +265,42 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
     }
   }
 
-  function startScan() {
-    setPhase("scanning");
-    setScanProgress(0);
-    setScanStage("Initializing camera...");
-    const stages = [
-      { pct: 15, label: "Detecting objects..." },
-      { pct: 35, label: "Identifying ingredients..." },
-      { pct: 55, label: "Cross-referencing pantry data..." },
-      { pct: 75, label: "Running Bayesian classification..." },
-      { pct: 95, label: "Finalizing ingredient list..." },
-    ];
-    let i = 0;
-    const tick = setInterval(() => {
-      if (i < stages.length) {
-        setScanProgress(stages[i].pct);
-        setScanStage(stages[i].label);
-        i++;
-      } else {
-        clearInterval(tick);
-        setScanProgress(100);
-        setScanStage("Scan complete!");
-        setTimeout(() => {
-          setIngredients(prev => {
-            const merged = [...prev];
-            for (const d of SCAN_DETECTED) {
-              if (!merged.some(x => x.toLowerCase() === d)) merged.push(d);
-            }
-            return merged;
-          });
-          setPhase("input");
-        }, 700);
-      }
-    }, 480);
-  }
-
-  function findRecipes() {
+  /**
+   * Main recommendation fetch — calls the hybrid backend engine.
+   * POST /recommend with user's ingredient list.
+   */
+  async function findRecipes() {
     if (ingredients.length === 0) return;
-    const matched: MatchedRecipe[] = RECIPES.map(r => {
-      const { score, matched, missing } = computeMatch(r, ingredients);
-      return { ...r, matchScore: score, matchedIngredients: matched, missingIngredients: missing };
-    });
-    matched.sort((a, b) => {
-      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-      if (DIFFICULTY_ORDER[a.difficulty] !== DIFFICULTY_ORDER[b.difficulty])
-        return DIFFICULTY_ORDER[a.difficulty] - DIFFICULTY_ORDER[b.difficulty];
-      return b.rating - a.rating;
-    });
-    setResults(matched);
+    setIsLoading(true);
+    setApiError(null);
+    setPhase("results");
+
+    try {
+      const res = await fetch(`${API_BASE}/recommend`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredients, topK: 20 }),
+      });
+
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+      const data = await res.json();
+      const scored: ScoredRecipe[] = data.recipes ?? [];
+      const matched: MatchedRecipe[] = scored.map((s, idx) => scoredToMatched(s, idx));
+
+      setResults(matched);
+    } catch (err: any) {
+      setApiError(err.message || "Could not reach the recommendation server.");
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+
     setDismissed(new Set());
     setLiked(new Set());
     setThumbsUp(new Set());
     setActiveRecipe(null);
-    setPhase("results");
   }
 
   // ─── SCANNING PHASE ───────────────────────────────────────────────────────
@@ -200,6 +341,41 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
   // ─── RESULTS PHASE ────────────────────────────────────────────────────────
   if (phase === "results") {
+    // Show loading spinner while fetching
+    if (isLoading) {
+      return (
+        <div className="flex flex-col h-full items-center justify-center gap-4" style={{ fontFamily: "var(--font-body)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(224,106,78,0.1)" }}>
+            <Sparkles size={28} style={{ color: "var(--primary)" }} className="animate-pulse" />
+          </div>
+          <div className="text-center">
+            <p style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", color: "var(--foreground)" }}>Finding Recipes</p>
+            <p style={{ fontSize: "0.8rem", color: "var(--muted-foreground)", marginTop: "0.3rem" }}>Running hybrid recommendation engine...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Show error state
+    if (apiError) {
+      return (
+        <div className="flex flex-col h-full items-center justify-center gap-4 px-6" style={{ fontFamily: "var(--font-body)" }}>
+          <AlertCircle size={36} style={{ color: "#C0392B" }} />
+          <div className="text-center">
+            <p style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", color: "var(--foreground)" }}>Recommendation Failed</p>
+            <p style={{ fontSize: "0.8rem", color: "var(--muted-foreground)", marginTop: "0.3rem", lineHeight: 1.5 }}>{apiError}</p>
+          </div>
+          <button
+            onClick={() => setPhase("input")}
+            className="px-5 py-2.5 rounded-xl transition-all hover:opacity-90"
+            style={{ background: "var(--primary)", color: "white", fontSize: "0.85rem", fontWeight: 600 }}
+          >
+            ← Back to Ingredients
+          </button>
+        </div>
+      );
+    }
+
     const topPick = results[0] ?? null;
     const gridRecipes = results.filter(r => !dismissed.has(r.id));
     const filteredGrid = gridRecipes.filter(r => {
@@ -285,7 +461,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
                 <div className="rounded-2xl overflow-hidden border" style={{ background: "var(--card)", borderColor: "var(--primary)", boxShadow: "0 0 0 1px var(--primary)" }}>
                   <div className="relative h-52">
-                    <img src={topPick.image} alt={topPick.title} className="w-full h-full object-cover" />
+                    <img src={topPick.img} alt={topPick.name} className="w-full h-full object-cover" />
                     <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,10,5,0.85) 0%, transparent 55%)" }} />
                     <div className="absolute top-3 left-3 px-3 py-1 rounded-full" style={{ background: "var(--primary)" }}>
                       <span style={{ color: "white", fontSize: "0.68rem", fontWeight: 700 }}>
@@ -294,10 +470,10 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                     </div>
                     <div className="absolute bottom-3 left-4 right-4">
                       <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: "white", fontWeight: 400, lineHeight: 1.2 }}>
-                        {topPick.title}
+                        {topPick.name}
                       </h3>
                       <div className="flex items-center gap-3 mt-1">
-                        <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}>by {topPick.author}</span>
+                        <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}>by {topPick.chef}</span>
                         <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}>⏱ {topPick.time}m</span>
                         <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.7)" }}>⭐ {topPick.rating}</span>
                       </div>
@@ -323,7 +499,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {topPick.missingIngredients.map((ing, i) => {
-                          const swap = getPantrySwap(ing, ingredients);
+                          const swap = getPantrySwap(ing, topPick.substitutions);
                           return (
                             <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: swap ? "rgba(0,0,0,0.04)" : "rgba(192,57,43,0.07)", border: `1px solid ${swap ? "rgba(0,0,0,0.12)" : "rgba(192,57,43,0.2)"}` }}>
                               <AlertCircle size={11} style={{ color: swap ? "var(--foreground)" : "#C0392B" }} />
@@ -366,7 +542,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                   {filteredGrid.slice(1).map(recipe => {
                     const matchPct = Math.round(recipe.matchScore * 100);
                     const isHovered = hoveredCard === recipe.id;
-                    const hasPantrySwap = recipe.missingIngredients.some(m => getPantrySwap(m, ingredients));
+                    const hasPantrySwap = recipe.missingIngredients.some(m => getPantrySwap(m, recipe.substitutions));
                     return (
                       <div
                         key={recipe.id}
@@ -377,7 +553,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                         onClick={() => { setActiveRecipe(recipe); setPhase("cooking"); }}
                       >
                         <div className="relative h-36">
-                          <img src={recipe.image} alt={recipe.title} className="w-full h-full object-cover" />
+                          <img src={recipe.img} alt={recipe.name} className="w-full h-full object-cover" />
                           <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,10,5,0.8) 0%, transparent 50%)" }} />
                           {hasPantrySwap && (
                             <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full" style={{ background: "rgba(26,26,26,0.85)" }}>
@@ -388,7 +564,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                             <span style={{ fontSize: "0.65rem", fontWeight: 700, color: matchPct >= 70 ? "var(--foreground)" : "var(--accent)" }}>{matchPct}%</span>
                           </div>
                           <div className="absolute bottom-2 left-2 right-2">
-                            <p style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", color: "white", lineHeight: 1.2 }}>{recipe.title}</p>
+                            <p style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", color: "white", lineHeight: 1.2 }}>{recipe.name}</p>
                           </div>
 
                           {/* Hover overlay with actions */}
@@ -491,6 +667,15 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
           </p>
         </div>
 
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+          accept="image/*"
+        />
+
         {/* Drag-drop zone */}
         <div
           className="relative flex flex-col items-center justify-center gap-3 rounded-2xl transition-all"
@@ -502,8 +687,8 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
           }}
           onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
           onDragLeave={() => setIsDragOver(false)}
-          onDrop={e => { e.preventDefault(); setIsDragOver(false); startScan(); }}
-          onClick={startScan}
+          onDrop={handleDrop}
+          onClick={triggerFileSelect}
         >
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(224,106,78,0.1)" }}>
             <Upload size={24} style={{ color: "var(--primary)" }} />
@@ -521,7 +706,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
         {/* Camera scan button */}
         <button
-          onClick={startScan}
+          onClick={triggerFileSelect}
           className="w-full flex items-center gap-3 px-5 py-4 rounded-2xl border transition-all hover:opacity-90 active:scale-[0.98]"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
@@ -625,7 +810,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
               <p style={{ fontSize: "0.75rem", color: "var(--foreground)", fontWeight: 600 }}>{ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""} ready</p>
             </div>
             <p style={{ fontSize: "0.68rem", color: "var(--muted-foreground)", marginTop: "0.2rem" }}>
-              Matching against {RECIPES.length} recipes
+              Searching the recipe database...
             </p>
           </div>
         )}
@@ -672,10 +857,10 @@ function CookingView({ recipe, userIngredients, onBack, onFavorite, isFavorited 
       <div className="w-60 flex-shrink-0 flex flex-col border-r overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
         {/* Recipe thumbnail header */}
         <div className="relative h-32 flex-shrink-0">
-          <img src={recipe.image} alt={recipe.title} className="w-full h-full object-cover" />
+          <img src={recipe.img} alt={recipe.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,10,5,0.85) 0%, transparent 40%)" }} />
           <div className="absolute bottom-2 left-3 right-3">
-            <p style={{ fontFamily: "var(--font-display)", fontSize: "0.95rem", color: "white", lineHeight: 1.2 }}>{recipe.title}</p>
+            <p style={{ fontFamily: "var(--font-display)", fontSize: "0.95rem", color: "white", lineHeight: 1.2 }}>{recipe.name}</p>
           </div>
         </div>
 
@@ -687,8 +872,8 @@ function CookingView({ recipe, userIngredients, onBack, onFavorite, isFavorited 
           <div className="space-y-1.5">
             {recipe.ingredients.map((ing, i) => {
               const isChecked = checkedIngredients.has(i);
-              const userHas = userIngredients.some(ui => ing.name.toLowerCase().includes(ui.toLowerCase()) || ui.toLowerCase().includes(ing.name.toLowerCase().split(" ")[0]));
-              const pantrySwap = !userHas && ing.substitute ? getPantrySwap(ing.name, userIngredients) : null;
+              const userHas = recipe.matchedIngredients.includes(ing.name);
+              const pantrySwap = !userHas ? getPantrySwap(ing.name, recipe.substitutions) : null;
               const fromPantry = pantrySwap !== null;
 
               return (
@@ -732,7 +917,7 @@ function CookingView({ recipe, userIngredients, onBack, onFavorite, isFavorited 
             {checkedIngredients.size}/{recipe.ingredients.length} gathered
           </p>
           <div className="w-full h-1.5 rounded-full overflow-hidden mt-1.5" style={{ background: "var(--muted)" }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${(checkedIngredients.size / recipe.ingredients.length) * 100}%`, background: "var(--muted)" }} />
+            <div className="h-full rounded-full transition-all" style={{ width: `${(checkedIngredients.size / recipe.ingredients.length) * 100}%`, background: "var(--primary)" }} />
           </div>
         </div>
       </div>

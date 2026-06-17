@@ -9,6 +9,7 @@ import { RecipeDetail } from "./RecipeDetail";
 interface HomeScreenProps {
   favorites: number[];
   onToggleFavorite: (id: number) => void;
+  recipes?: Recipe[];
 }
 
 const FEATURED_ID = 5; // Chocolate Lava Cake — highest likes
@@ -44,12 +45,14 @@ const SECTIONS = [
   },
 ];
 
-export function HomeScreen({ favorites, onToggleFavorite }: HomeScreenProps) {
+export function HomeScreen({ favorites, onToggleFavorite, recipes = [] }: HomeScreenProps) {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set());
 
-  const featured = RECIPES.find(r => r.id === FEATURED_ID) ?? RECIPES[0];
+  const activeRecipes = recipes.length > 0 ? recipes : RECIPES;
+
+  const featured = activeRecipes.find(r => r.id === FEATURED_ID) ?? activeRecipes[0];
 
   function toggleLike(id: number) {
     setLikedIds(prev => {
@@ -60,8 +63,8 @@ export function HomeScreen({ favorites, onToggleFavorite }: HomeScreenProps) {
   }
 
   const categoryFiltered = activeCategory === "All"
-    ? RECIPES
-    : RECIPES.filter(r => r.category === activeCategory);
+    ? activeRecipes
+    : activeRecipes.filter(r => r.category === activeCategory);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto" style={{ scrollbarWidth: "none", fontFamily: "var(--font-body)" }}>
@@ -195,7 +198,7 @@ export function HomeScreen({ favorites, onToggleFavorite }: HomeScreenProps) {
 
       {/* ── Themed sections (shown when "All" is active) ─────── */}
       {activeCategory === "All" && SECTIONS.map(section => {
-        const sectionRecipes = RECIPES.filter(section.filter).sort(section.sort);
+        const sectionRecipes = activeRecipes.filter(section.filter).sort(section.sort);
         if (sectionRecipes.length === 0) return null;
         const Icon = section.icon;
 
@@ -253,10 +256,10 @@ export function HomeScreen({ favorites, onToggleFavorite }: HomeScreenProps) {
         <div className="px-5 mb-6 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--foreground)" }}>All Recipes</span>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{RECIPES.length} total</span>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{activeRecipes.length} total</span>
           </div>
           <div className="space-y-3">
-            {[...RECIPES].sort((a, b) => b.rating - a.rating).map(recipe => (
+            {[...activeRecipes].sort((a, b) => b.rating - a.rating).map(recipe => (
               <ListCard
                 key={recipe.id}
                 recipe={recipe}

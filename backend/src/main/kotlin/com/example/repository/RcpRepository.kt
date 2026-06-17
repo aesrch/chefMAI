@@ -137,4 +137,29 @@ class RcpRepository {
         .firstOrNull()
     }
   }
+
+  fun getAllRecipes(): List<RcpResponse> {
+    return transaction {
+        RcpTable
+            .selectAll()
+            .mapNotNull { row ->
+                RcpResponse(
+                    rcpID = row[RcpTable.recipeID] ?: "",
+                    accID = row[RcpTable.accID],
+                    name = row[RcpTable.recipeName],
+                    ingredients = row[RcpTable.recipeIngredients]
+                        .split(",")
+                        .map { it.trim() },
+                    steps = row[RcpTable.recipeSteps]
+                        .split("||")
+                        .map { it.trim() },
+                    img = row[RcpTable.recipeImg] ?: "",
+                    genre = row[RcpTable.recipeGenre] ?: "",
+                    description = row[RcpTable.recipeDesc],
+                    amount = row[RcpTable.recipeAmount].split(",")
+                        .map { it.trim() }
+                )
+            }
+    }
+  }
 }

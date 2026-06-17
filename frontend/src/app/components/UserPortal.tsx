@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Home, Search, UtensilsCrossed, Bookmark, User } from "lucide-react";
 import { HomeScreen } from "./HomeScreen";
 import { SearchScreen } from "./SearchScreen";
 import { KitchenScreen } from "./KitchenScreen";
 import { FavoritesScreen } from "./FavoritesScreen";
 import { ProfileScreen } from "./ProfileScreen";
+import { Recipe } from "../data/recipes";
+
+const API_BASE = "http://localhost:8080";
 
 type Tab = "home" | "search" | "kitchen" | "favorites" | "profile";
 
@@ -12,9 +15,53 @@ interface UserPortalProps {
   onLogout: () => void;
 }
 
+export function backendToFrontendRecipe(r: any, idx: number): Recipe {
+  const numericId = parseInt(r.rcpID.replace(/\D/g, ""), 10) || (idx + 100);
+  return {
+    id: numericId,
+    title: r.name,
+    author: "Chef MAI",
+    authorAvatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop",
+    image: r.img ? (r.img.startsWith("http") ? r.img : `${API_BASE}/images/${r.img}`) : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop",
+    category: r.genre || "All",
+    tags: [r.genre || "General"],
+    time: 30,
+    difficulty: "Medium",
+    rating: 4.5,
+    reviews: 120,
+    likes: 340,
+    description: r.description || "",
+    ingredients: r.ingredients.map((name: string, i: number) => ({
+      name: name.trim(),
+      amount: r.amount[i] ? r.amount[i].trim() : "1 unit",
+    })),
+    steps: r.steps.map((step: string) => step.trim()),
+    calories: 450,
+    servings: 2,
+    isUserSubmitted: r.accID !== "admin",
+  };
+}
+
 export function UserPortal({ onLogout }: UserPortalProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+
+  useEffect(() => {
+    async function loadRecipes() {
+      try {
+        const res = await fetch(`${API_BASE}/recipes/all`);
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((r: any, idx: number) => backendToFrontendRecipe(r, idx));
+          setRecipes(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load recipes from database, using hardcoded fallback templates.", err);
+      }
+    }
+    loadRecipes();
+  }, []);
 
   function toggleFavorite(id: number) {
     setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
@@ -53,10 +100,10 @@ export function UserPortal({ onLogout }: UserPortalProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {tab === "home"      && <HomeScreen    favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "search"    && <SearchScreen  favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "home"      && <HomeScreen    recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "search"    && <SearchScreen  recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
         {tab === "kitchen"   && <KitchenScreen favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "favorites" && <FavoritesScreen favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "favorites" && <FavoritesScreen recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
         {tab === "profile"   && <ProfileScreen onLogout={onLogout} />}
       </div>
 
