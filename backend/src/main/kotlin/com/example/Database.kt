@@ -1,14 +1,10 @@
 package com.example
 
-import com.example.db.*
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.transactions.transaction
 import io.ktor.server.application.*
 import org.jetbrains.exposed.sql.Database
 import io.github.cdimascio.dotenv.dotenv
 
 fun Application.configureDatabase() {
-    // Load .env variables
     val dotenv = dotenv()
     val dbUrl = dotenv["DB_URL"]
     val dbUser = dotenv["DB_USER"]
@@ -20,8 +16,4 @@ fun Application.configureDatabase() {
         user = dbUser,
         password = dbPassword
     )
-
-    transaction {
-        SchemaUtils.create(AccTable, RcpTable, RatingTable, ImgTable)
-    }
 }

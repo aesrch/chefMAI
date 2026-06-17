@@ -1,0 +1,36 @@
+Database Changes - 17 June 2026
+=================================
+
+File Modified: src/main/kotlin/com/example/Database.kt
+------------------------------------------------------
+
+What changed:
+  - Removed SchemaUtils.create() call and transaction wrapper.
+  - Removed unused imports: com.example.db.*, SchemaUtils, transaction.
+
+Why:
+  The database tables (accTable, rcpTable, rateTable, imgtable) are now
+  managed by the SQL dump files found in ../sql/. These dumps define the
+  authoritative schema for the chefmaidb database. Auto-creating tables
+  with Exposed's SchemaUtils.create() could conflict with the dump's
+  schema definitions (e.g., column types, constraints, triggers).
+
+  The configureDatabase() function now only establishes the JDBC
+  connection — table management is handled externally via SQL imports.
+
+What you need to do:
+  Import the SQL dump files into chefmaidb (order matters):
+    1. cookingdb_acctable.sql
+    2. cookingdb_imgtable.sql
+    3. cookingdb_rcptable.sql
+    4. cookingdb_ratetable.sql
+    5. cookingdb_rcpcoltable.sql
+    6. cookingdb_routines.sql
+
+  Run each file against chefmaidb:
+    mysql -u root -p chefmaidb < "path\to\sql\file.sql"
+
+Impact on Metrics Module:
+  After importing, you can test POST /metrics/evaluate with real recipe
+  IDs from the dump (e.g., "rcp-003", "rcp-004", "rcp-005") and expect
+  non-zero scores.
