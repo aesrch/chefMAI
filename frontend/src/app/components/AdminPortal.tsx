@@ -3,11 +3,11 @@ import {
   LayoutDashboard, Users, MessageSquare, LogOut,
   TrendingUp, ShieldCheck, AlertTriangle, CheckCircle,
   MoreVertical, Search, Flag, Trash2, Eye, ChevronDown, Star,
-  UserCheck, UserX, Filter, Target, Crosshair, Activity, BarChart2, BarChart3
+  UserCheck, UserX, Filter, Target, Crosshair, Activity, BarChart2, BarChart3, FlaskConical
 } from "lucide-react";
 import { MetricsDashboard } from "./MetricsDashboard";
 
-type AdminTab = "dashboard" | "users" | "reviews" | "metrics";
+type AdminTab = "dashboard" | "users" | "reviews" | "metrics" | "evaluation";
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -99,6 +99,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     { key: "users", icon: Users, label: "Users" },
     { key: "reviews", icon: MessageSquare, label: "Reviews" },
     { key: "metrics", icon: BarChart3, label: "Metrics" },
+    { key: "evaluation", icon: FlaskConical, label: "Evaluation" },
   ];
 
   return (
@@ -197,6 +198,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           {tab === "users" && <UsersTab search={userSearch} setSearch={setUserSearch} />}
           {tab === "reviews" && <ReviewsTab />}
           {tab === "metrics" && <MetricsDashboard />}
+          {tab === "evaluation" && <MetricsDashboard initialTab="evaluation" />}
         </div>
 
         {/* Mobile bottom nav */}

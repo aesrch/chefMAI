@@ -2,6 +2,7 @@ package com.example.repository
 
 import com.example.db.UserPreferenceTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 
@@ -119,6 +120,12 @@ class UserPreferenceRepository {
             UserPreferenceTable
                 .select { UserPreferenceTable.accId eq accId }
                 .count()
+        }
+    }
+
+    fun deleteByAccId(accId: String) {
+        transaction {
+            UserPreferenceTable.deleteWhere { UserPreferenceTable.accId eq accId }
         }
     }
 }

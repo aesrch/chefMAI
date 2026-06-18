@@ -41,6 +41,16 @@ fun Application.configureRouting() {
         logRepo = recLogRepo
     )
 
+    val accRepository = AccRepository()
+
+    val evaluationService = EvaluationService(
+        recommendationEngine = recommendationEngine,
+        metricsService = metricsService,
+        accRepo = accRepository,
+        logRepo = recLogRepo,
+        prefRepo = userPrefRepo
+    )
+
     // Auto-train Naive Bayes model on startup
     try {
         naiveBayesService.autoTrain()
@@ -97,6 +107,7 @@ fun Application.configureRouting() {
         nbRoutes(naiveBayesService)
         preferenceRoutes(bayesianPrefService)
         metricsRoutes(metricsService)
+        evaluationRoutes(evaluationService)
 
     }
 }
