@@ -263,7 +263,9 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
       const data = await res.json();
       const detected = data.detectedIngredients ?? [];
       const scored: ScoredRecipe[] = data.recommendation?.recipes ?? [];
-      const matched: MatchedRecipe[] = scored.map((s, idx) => scoredToMatched(s, idx));
+      const matched: MatchedRecipe[] = scored
+        .filter(s => Math.round(s.ingredientMatchScore * 100) > 0)
+        .map((s, idx) => scoredToMatched(s, idx));
 
       setTimeout(() => {
         if (detected.length === 0) {
@@ -344,7 +346,9 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
       const data = await res.json();
       const scored: ScoredRecipe[] = data.recipes ?? [];
-      const matched: MatchedRecipe[] = scored.map((s, idx) => scoredToMatched(s, idx));
+      const matched: MatchedRecipe[] = scored
+        .filter(s => Math.round(s.ingredientMatchScore * 100) > 0)
+        .map((s, idx) => scoredToMatched(s, idx));
 
       setResults(matched);
     } catch (err: any) {
