@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Camera, Plus, X, Search, Clock, Users, Flame, Star, Heart,
   Bookmark, Sparkles, CheckCircle, AlertCircle, ArrowLeft, Scan,
@@ -7,7 +7,7 @@ import {
 
 const API_BASE = "http://localhost:8080";
 
-type Phase = "input" | "scanning" | "results" | "cooking";
+type Phase = "input" | "scanning" | "results" | "cooking" | "webcam";
 
 // Backend ScoredRecipe shape from POST /recommend
 interface ScoredRecipe {
@@ -98,7 +98,7 @@ function scoredToMatched(s: ScoredRecipe, idx: number): MatchedRecipe {
     description: s.description,
     ingredients: s.ingredients.map((name, i) => ({ name, amount: s.amount[i] ?? "" })),
     steps: s.steps,
-    img: s.img || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop",
+    img: s.img ? (s.img.startsWith("http") ? s.img : `${API_BASE}/images/${s.img}`) : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop",
     genre: s.genre,
     time: 30,           // Default — backend doesn't store cook time yet
     calories: 400,      // Default — backend doesn't store calories yet
@@ -162,6 +162,63 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
   const [apiError, setApiError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [mediaStream]);
+
+  async function startWebcam() {
+    setPhase("webcam");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      setMediaStream(stream);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 50);
+    } catch (err: any) {
+      console.error("Error accessing webcam:", err);
+      alert("Could not access camera. Please check camera permissions, or choose an image file instead.");
+      setPhase("input");
+    }
+  }
+
+  function stopWebcam(streamToStop: MediaStream | null = mediaStream) {
+    if (streamToStop) {
+      streamToStop.getTracks().forEach(track => track.stop());
+    }
+    setMediaStream(null);
+  }
+
+  function capturePhoto() {
+    if (!videoRef.current || !mediaStream) return;
+
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "captured-ingredients.jpg", { type: "image/jpeg" });
+          stopWebcam();
+          handleImageFile(file);
+        }
+      }, "image/jpeg", 0.95);
+    }
+  }
 
   async function handleImageFile(file: File) {
     setPhase("scanning");
@@ -301,6 +358,54 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
     setLiked(new Set());
     setThumbsUp(new Set());
     setActiveRecipe(null);
+  }
+
+  // ─── WEBCAM PHASE ─────────────────────────────────────────────────────────
+  if (phase === "webcam") {
+    return (
+      <div className="flex flex-col h-full items-center justify-center px-6 gap-6" style={{ fontFamily: "var(--font-body)" }}>
+        <div className="relative w-72 h-72 rounded-3xl overflow-hidden border-2 shadow-2xl" style={{ borderColor: "var(--primary)", background: "#0a0604" }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+          {/* Viewfinder borders */}
+          {[["top-3 left-3", "border-t-2 border-l-2"], ["top-3 right-3", "border-t-2 border-r-2"], ["bottom-3 left-3", "border-b-2 border-l-2"], ["bottom-3 right-3", "border-b-2 border-r-2"]].map(([pos, border], i) => (
+            <div key={i} className={`absolute ${pos} w-6 h-6 ${border}`} style={{ borderColor: "var(--primary)", borderWidth: "3px" }} />
+          ))}
+          {/* Scanning line overlay */}
+          <div className="absolute left-0 right-0 h-0.5 bg-red-500 opacity-70 animate-pulse" style={{ top: "50%", boxShadow: "0 0 8px red" }} />
+        </div>
+        <div className="text-center max-w-xs">
+          <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.3rem", color: "var(--foreground)" }}>Webcam Scan</h3>
+          <p style={{ fontSize: "0.82rem", color: "var(--muted-foreground)", marginTop: "0.4rem", lineHeight: 1.4 }}>
+            Show ingredients to your camera and capture to identify them.
+          </p>
+        </div>
+        <div className="flex gap-3 w-full max-w-xs justify-center">
+          <button
+            onClick={() => {
+              stopWebcam();
+              setPhase("input");
+            }}
+            className="flex-1 py-3 rounded-2xl border transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            style={{ borderColor: "var(--border)", color: "var(--foreground)", fontSize: "0.88rem", fontWeight: 600 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={capturePhoto}
+            className="flex-1 py-3 rounded-2xl transition-all hover:opacity-90 flex items-center justify-center gap-2"
+            style={{ background: "var(--primary)", color: "white", fontSize: "0.88rem", fontWeight: 600 }}
+          >
+            <Camera size={16} /> Capture
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // ─── SCANNING PHASE ───────────────────────────────────────────────────────
@@ -706,7 +811,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
         {/* Camera scan button */}
         <button
-          onClick={triggerFileSelect}
+          onClick={startWebcam}
           className="w-full flex items-center gap-3 px-5 py-4 rounded-2xl border transition-all hover:opacity-90 active:scale-[0.98]"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
