@@ -2,6 +2,7 @@ package com.example.repository
 
 import com.example.db.RecommendationLogTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 
@@ -133,6 +134,12 @@ class RecommendationLogRepository {
                         userFeedback = row[RecommendationLogTable.userFeedback]
                     )
                 }
+        }
+    }
+
+    fun deleteByAccId(accId: String) {
+        transaction {
+            RecommendationLogTable.deleteWhere { RecommendationLogTable.accId eq accId }
         }
     }
 }

@@ -12,6 +12,10 @@ application {
     mainClass = "io.ktor.server.netty.EngineMain"
 }
 
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile> {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+}
+
 dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.core)

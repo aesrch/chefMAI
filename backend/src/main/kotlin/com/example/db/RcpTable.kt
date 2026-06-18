@@ -3,7 +3,7 @@ package com.example.db
 import org.jetbrains.exposed.sql.Table
 
 object RcpTable : Table("rcpTable") {
-    val recipeID = varchar("rcpID", 20).nullable()
+    val recipeID = varchar("rcpID", 20)
     val accID = varchar("accID", 20)
     val recipeName = text("rcpDetails")
     val recipeIngredients = text("rcpIngred")

@@ -1,7 +1,7 @@
 -- Seed data: common ingredient substitutions
 -- Categories: dairy, protein, grain, fat, sweetener, egg, spice, sauce, produce
 
-INSERT INTO ingredient_substitutions (sub_id, original_name, substitute_name, ratio, notes, category, confidence) VALUES
+INSERT IGNORE INTO ingredient_substitutions (sub_id, original_name, substitute_name, ratio, notes, category, confidence) VALUES
 -- Dairy substitutions
 ('sub-001', 'buttermilk', 'milk + lemon juice', '1 cup + 1 tbsp', 'Let sit 5 minutes to curdle', 'dairy', 0.90),
 ('sub-002', 'heavy cream', 'coconut cream', '1:1', 'Best for curries and soups', 'dairy', 0.85),
