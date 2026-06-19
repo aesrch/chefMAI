@@ -37,7 +37,7 @@ class MetricsService(
 
         val tp = accepted + cooked
         val fp = rejected
-        val fn = (ignored * 0.1).toInt()
+        val fn = ignored
 
         val precision = if (tp + fp > 0) tp.toDouble() / (tp + fp) else 0.0
         val recall = if (tp + fn > 0) tp.toDouble() / (tp + fn) else 0.0
@@ -185,49 +185,49 @@ class MetricsService(
 
     private fun demoReport(): EvaluationReport {
         val summary = MetricsSummary(
-            totalRecommendations = 2847,
-            totalAccepted = 892,
-            totalRejected = 341,
-            totalCooked = 475,
-            totalIgnored = 1139,
-            precision = 0.4298,
-            recall = 0.5652,
-            f1Score = 0.4883,
-            averageIngredientMatchScore = 0.5241,
-            suitabilityRate = 0.8686,
-            precisionAtK = mapOf(1 to 0.95, 3 to 0.88, 5 to 0.82, 10 to 0.71)
+            totalRecommendations = 300,
+            totalAccepted = 16,
+            totalRejected = 100,
+            totalCooked = 5,
+            totalIgnored = 179,
+            precision = 0.173,
+            recall = 0.105,
+            f1Score = 0.131,
+            averageIngredientMatchScore = 0.218,
+            suitabilityRate = 0.953,
+            precisionAtK = mapOf(1 to 0.55, 3 to 0.42, 5 to 0.35, 10 to 0.17)
         )
 
         val precisionAtKCurve = (1..10).associate { k ->
             k to when (k) {
-                1 -> 0.95; 2 -> 0.92; 3 -> 0.88; 4 -> 0.85; 5 -> 0.82
-                6 -> 0.78; 7 -> 0.75; 8 -> 0.73; 9 -> 0.72; 10 -> 0.71
-                else -> 0.70
+                1 -> 0.60; 2 -> 0.49; 3 -> 0.42; 4 -> 0.38; 5 -> 0.35
+                6 -> 0.28; 7 -> 0.23; 8 -> 0.20; 9 -> 0.18; 10 -> 0.17
+                else -> 0.15
             }
         }
 
         val feedbackDist = mapOf(
-            "accepted" to 892, "rejected" to 341, "cooked" to 475, "ignored" to 1139
+            "accepted" to 16, "rejected" to 100, "cooked" to 5, "ignored" to 179
         )
 
         val topRecipes = listOf(
-            TopRecipeEntry("rcp001", "Beef Stir Fry", "Asian", 0.8700, 0.8930, 320),
-            TopRecipeEntry("rcp002", "Creamy Fettuccine", "Italian", 0.8300, 0.8450, 287),
-            TopRecipeEntry("rcp003", "Tomato Basil Soup", "Italian", 0.8100, 0.8220, 256),
-            TopRecipeEntry("rcp004", "Chicken Curry", "Indian", 0.7950, 0.7580, 234),
-            TopRecipeEntry("rcp005", "Caesar Salad", "American", 0.7820, 0.7910, 218),
-            TopRecipeEntry("rcp006", "Vegetable Stir Fry", "Asian", 0.7650, 0.7730, 201),
-            TopRecipeEntry("rcp007", "Beef Tacos", "Mexican", 0.7510, 0.7340, 189),
-            TopRecipeEntry("rcp008", "Margherita Pizza", "Italian", 0.7400, 0.7550, 175),
-            TopRecipeEntry("rcp009", "Mushroom Risotto", "Italian", 0.7250, 0.7380, 163),
-            TopRecipeEntry("rcp010", "Chicken Teriyaki", "Japanese", 0.7100, 0.7210, 152),
+            TopRecipeEntry("rcp-003", "Bistek", "Asian", 0.7200, 0.3100, 18),
+            TopRecipeEntry("rcp-005", "Pancakes", "American", 0.6800, 0.3800, 16),
+            TopRecipeEntry("rcp-007", "Vegan Casserole", "American", 0.6500, 0.2900, 15),
+            TopRecipeEntry("rcp-008", "Mushroom & Chestnut Rotolo", "Italian", 0.6200, 0.2700, 14),
+            TopRecipeEntry("rcp-009", "Matar Paneer", "Indian", 0.5900, 0.3500, 13),
+            TopRecipeEntry("rcp-016", "Boulangere Potatoes", "French", 0.5500, 0.2500, 12),
+            TopRecipeEntry("rcp-018", "Fettuccine Alfredo", "Italian", 0.5200, 0.3000, 11),
+            TopRecipeEntry("rcp-020", "Bread Omelette", "American", 0.4800, 0.2200, 10),
+            TopRecipeEntry("rcp-017", "Chivito Uruguayo", "Uruguayan", 0.4500, 0.2600, 9),
+            TopRecipeEntry("rcp-010", "Squash Linguine", "Italian", 0.4200, 0.2400, 8),
         )
 
         val matchDist = mapOf(
-            "0.0-0.1" to 108, "0.1-0.2" to 142, "0.2-0.3" to 175,
-            "0.3-0.4" to 201, "0.4-0.5" to 238, "0.5-0.6" to 312,
-            "0.6-0.7" to 374, "0.7-0.8" to 423, "0.8-0.9" to 489,
-            "0.9-1.0" to 385
+            "0.0-0.1" to 95, "0.1-0.2" to 94, "0.2-0.3" to 56,
+            "0.3-0.4" to 37, "0.4-0.5" to 18, "0.5-0.6" to 0,
+            "0.6-0.7" to 0, "0.7-0.8" to 0, "0.8-0.9" to 0,
+            "0.9-1.0" to 0
         )
 
         return EvaluationReport(

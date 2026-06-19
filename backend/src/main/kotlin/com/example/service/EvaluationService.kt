@@ -66,9 +66,6 @@ class EvaluationService(
     fun runEvaluation(): EvaluationTestResult {
         val accId = setupEvalUser()
 
-        logRepo.deleteByAccId(accId)
-        prefRepo.deleteByAccId(accId)
-
         val rawResults = mutableListOf<RawResultEntry>()
         val scenarioResults = mutableListOf<ScenarioResult>()
 
@@ -156,8 +153,6 @@ class EvaluationService(
 
         val globalSummary = metricsService.computeMetrics()
 
-        logRepo.deleteByAccId(accId)
-        prefRepo.deleteByAccId(accId)
         val precisionCurve = (1..10).associate { k ->
             k to metricsService.computePrecisionAtK(k)
         }
