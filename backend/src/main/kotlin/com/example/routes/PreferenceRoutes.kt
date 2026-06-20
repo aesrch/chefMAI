@@ -72,5 +72,14 @@ fun Route.preferenceRoutes(prefService: BayesianPreferenceService) {
                 )
             )
         }
+
+        // GET /preferences/favorites
+        // Get list of recipe IDs that the user has positively interacted with (like, save, rate, cook)
+        get("/favorites") {
+            val session = call.sessions.get<UserSession>()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, "Login required")
+            val favs = prefService.getPositiveRecipeIds(session.accID)
+            call.respond(favs.toList())
+        }
     }
 }

@@ -120,4 +120,11 @@ class BayesianPreferenceService(
     ) {
         prefRepo.trackInteraction(accId, rcpId, genre, interaction, ratingValue)
     }
+
+    /**
+     * Get recipe IDs that a user has positively interacted with.
+     */
+    fun getPositiveRecipeIds(accId: String): Set<String> {
+        return prefRepo.getPositiveRecipeIds(accId)
+    }
 }

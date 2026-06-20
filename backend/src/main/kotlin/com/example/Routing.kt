@@ -92,7 +92,7 @@ fun Application.configureRouting() {
             filterRoutes()
         }
 
-        ratingRoutes()
+        ratingRoutes(bayesianPrefService, rcpRepository)
 
         //images
         imageRoutes()

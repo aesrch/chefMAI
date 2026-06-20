@@ -66,10 +66,19 @@ fun Route.detectionRoutes(
 
             val multipart = call.receiveMultipart()
             var imageBytes: ByteArray? = null
+            var formAccId: String? = null
 
             multipart.forEachPart { part ->
-                if (part is PartData.FileItem) {
-                    imageBytes = part.streamProvider().readBytes()
+                when (part) {
+                    is PartData.FileItem -> {
+                        imageBytes = part.streamProvider().readBytes()
+                    }
+                    is PartData.FormItem -> {
+                        if (part.name == "accId") {
+                            formAccId = part.value
+                        }
+                    }
+                    else -> {}
                 }
                 part.dispose()
             }
@@ -108,7 +117,7 @@ fun Route.detectionRoutes(
             }
 
             // Step 3: Get user session for personalized recommendations
-            val accId = call.sessions.get<UserSession>()?.accID
+            val accId = formAccId ?: call.sessions.get<UserSession>()?.accID
 
             // Step 4: Run hybrid recommendation engine on detected ingredients
             val recommendations = recommendationEngine.recommend(

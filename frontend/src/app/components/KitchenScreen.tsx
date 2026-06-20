@@ -69,6 +69,7 @@ interface MatchedRecipe {
 interface KitchenScreenProps {
   favorites: number[];
   onToggleFavorite: (id: number) => void;
+  userAccId?: string | null;
 }
 
 // Smart ingredient emoji map
@@ -141,7 +142,7 @@ function getPantrySwap(missingName: string, substitutions: Record<string, Substi
 
 const DIFFICULTY_ORDER = { Easy: 0, Medium: 1, Hard: 2 };
 
-export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProps) {
+export function KitchenScreen({ favorites, onToggleFavorite, userAccId }: KitchenScreenProps) {
   const [phase, setPhase] = useState<Phase>("input");
   const [inputValue, setInputValue] = useState("");
   const [ingredients, setIngredients] = useState<string[]>([]);
@@ -243,9 +244,13 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
     try {
       const formData = new FormData();
       formData.append("image", file);
+      if (userAccId) {
+        formData.append("accId", userAccId);
+      }
 
       const res = await fetch(`${API_BASE}/detection/recommend`, {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 
@@ -339,7 +344,7 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients, topK: 20 }),
+        body: JSON.stringify({ ingredients, accId: userAccId, topK: 20 }),
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -623,7 +628,13 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
 
                   <div className="flex gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
                     <button
-                      onClick={() => { setActiveRecipe(topPick); setPhase("cooking"); }}
+                      onClick={() => {
+                        setActiveRecipe(topPick);
+                        setPhase("cooking");
+                        if (topPick.rcpId) {
+                          trackInteraction(topPick.rcpId, topPick.genre, "cook");
+                        }
+                      }}
                       className="flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90"
                       style={{ background: "var(--primary)", color: "white", fontWeight: 600, fontSize: "0.85rem" }}
                     >
@@ -677,25 +688,54 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                           </div>
 
                           {/* Hover overlay with actions */}
+                          {/* Hover overlay with actions */}
                           {isHovered && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: "rgba(26,26,26,0.72)", backdropFilter: "blur(2px)" }}>
                               <div className="flex gap-3">
                                 <button
-                                  onClick={e => { e.stopPropagation(); setLiked(prev => new Set([...prev, recipe.id])); }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    const isLiking = !liked.has(recipe.id);
+                                    setLiked(prev => {
+                                      const n = new Set(prev);
+                                      isLiking ? n.add(recipe.id) : n.delete(recipe.id);
+                                      return n;
+                                    });
+                                    if (recipe.rcpId) {
+                                      trackInteraction(recipe.rcpId, recipe.genre, isLiking ? "like" : "dislike");
+                                    }
+                                  }}
                                   className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110"
                                   style={{ background: liked.has(recipe.id) ? "rgba(224,106,78,0.85)" : "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)" }}
                                 >
                                   <Heart size={15} fill={liked.has(recipe.id) ? "white" : "none"} stroke="white" />
                                 </button>
                                 <button
-                                  onClick={e => { e.stopPropagation(); setThumbsUp(prev => new Set([...prev, recipe.id])); }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    const isThumbsUp = !thumbsUp.has(recipe.id);
+                                    setThumbsUp(prev => {
+                                      const n = new Set(prev);
+                                      isThumbsUp ? n.add(recipe.id) : n.delete(recipe.id);
+                                      return n;
+                                    });
+                                    if (recipe.rcpId) {
+                                      trackInteraction(recipe.rcpId, recipe.genre, isThumbsUp ? "like" : "dislike");
+                                    }
+                                  }}
                                   className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110"
                                   style={{ background: thumbsUp.has(recipe.id) ? "rgba(224,106,78,0.9)" : "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)" }}
                                 >
                                   <ThumbsUp size={15} stroke="white" />
                                 </button>
                                 <button
-                                  onClick={e => { e.stopPropagation(); setDismissed(prev => new Set([...prev, recipe.id])); }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setDismissed(prev => new Set([...prev, recipe.id]));
+                                    if (recipe.rcpId) {
+                                      trackInteraction(recipe.rcpId, recipe.genre, "dislike");
+                                    }
+                                  }}
                                   className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110"
                                   style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)" }}
                                 >
@@ -719,14 +759,31 @@ export function KitchenScreen({ favorites, onToggleFavorite }: KitchenScreenProp
                         {/* Action row — always visible */}
                         <div className="flex border-t mx-1 mb-1" style={{ borderColor: "var(--border)" }}>
                           <button
-                            onClick={e => { e.stopPropagation(); setDismissed(prev => new Set([...prev, recipe.id])); }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDismissed(prev => new Set([...prev, recipe.id]));
+                              if (recipe.rcpId) {
+                                trackInteraction(recipe.rcpId, recipe.genre, "dislike");
+                              }
+                            }}
                             className="flex-1 flex items-center justify-center gap-1 py-2 transition-all hover:opacity-70"
                             style={{ color: "var(--muted-foreground)", fontSize: "0.68rem" }}
                           >
                             <X size={12} /> Skip
                           </button>
                           <button
-                            onClick={e => { e.stopPropagation(); setLiked(prev => { const n = new Set(prev); n.has(recipe.id) ? n.delete(recipe.id) : n.add(recipe.id); return n; }); }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              const isLiking = !liked.has(recipe.id);
+                              setLiked(prev => {
+                                const n = new Set(prev);
+                                isLiking ? n.add(recipe.id) : n.delete(recipe.id);
+                                return n;
+                              });
+                              if (recipe.rcpId) {
+                                trackInteraction(recipe.rcpId, recipe.genre, isLiking ? "like" : "dislike");
+                              }
+                            }}
                             className="flex-1 flex items-center justify-center gap-1 py-2 transition-all hover:opacity-80 border-l border-r"
                             style={{ borderColor: "var(--border)", color: liked.has(recipe.id) ? "var(--primary)" : "var(--muted-foreground)", fontSize: "0.68rem", fontWeight: liked.has(recipe.id) ? 600 : 400 }}
                           >

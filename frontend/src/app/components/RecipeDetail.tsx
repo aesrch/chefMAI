@@ -2,6 +2,8 @@ import { X, Clock, Users, Flame, Star, Heart, Bookmark, ChefHat, AlertCircle } f
 import { Recipe } from "../data/recipes";
 import { useState } from "react";
 
+const API_BASE = "http://localhost:8080";
+
 interface RecipeDetailProps {
   recipe: Recipe;
   onClose: () => void;
@@ -14,6 +16,41 @@ export function RecipeDetail({ recipe, onClose, isFavorited, onToggleFavorite }:
   const [userRating, setUserRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
+
+  async function handlePostReview() {
+    if (!recipe.rcpId) {
+      alert("Cannot rate fallback recipes.");
+      return;
+    }
+    if (userRating === 0) {
+      alert("Please select a star rating first!");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/rate/${recipe.rcpId}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rateStar: userRating,
+          rateText: reviewText
+        })
+      });
+
+      if (res.ok) {
+        alert("Review posted successfully!");
+        setReviewText("");
+        setUserRating(0);
+      } else {
+        const errMsg = await res.text();
+        alert(`Failed to post review: ${errMsg}`);
+      }
+    } catch (err) {
+      console.error("Error posting review:", err);
+      alert("Failed to submit review.");
+    }
+  }
 
   const difficultyColor = {
     Easy: "var(--foreground)",
@@ -191,7 +228,11 @@ export function RecipeDetail({ recipe, onClose, isFavorited, onToggleFavorite }:
                     className="w-full px-3 py-2.5 rounded-xl border outline-none resize-none"
                     style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--foreground)", fontSize: "0.875rem" }}
                   />
-                  <button className="mt-2 px-5 py-2 rounded-xl" style={{ background: "var(--primary)", color: "white", fontSize: "0.85rem", fontWeight: 600 }}>
+                  <button
+                    onClick={handlePostReview}
+                    className="mt-2 px-5 py-2 rounded-xl transition-all hover:opacity-90"
+                    style={{ background: "var(--primary)", color: "white", fontSize: "0.85rem", fontWeight: 600 }}
+                  >
                     Post Review
                   </button>
                 </div>

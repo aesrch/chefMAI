@@ -372,11 +372,11 @@ function DashboardTab() {
           {/* Per-category breakdown */}
           <div className="col-span-3 space-y-3">
             {[
-              { category: "Italian",   score: 91, count: 2140 },
-              { category: "Thai",      score: 86, count: 1830 },
-              { category: "Healthy",   score: 88, count: 1560 },
-              { category: "Mexican",   score: 79, count: 980  },
-              { category: "Dessert",   score: 74, count: 4100 },
+              { category: "Italian", score: 91, count: 2140 },
+              { category: "Thai", score: 86, count: 1830 },
+              { category: "Healthy", score: 88, count: 1560 },
+              { category: "Mexican", score: 79, count: 980 },
+              { category: "Dessert", score: 74, count: 4100 },
             ].map(({ category, score, count }) => {
               const color = score >= 88 ? "var(--foreground)" : score >= 80 ? "var(--primary)" : "var(--accent)";
               return (

@@ -39,6 +39,7 @@ export function backendToFrontendRecipe(r: any, idx: number): Recipe {
     calories: 450,
     servings: 2,
     isUserSubmitted: r.accID !== "admin",
+    rcpId: r.rcpID,
   };
 }
 
@@ -46,6 +47,7 @@ export function UserPortal({ onLogout }: UserPortalProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [favorites, setFavorites] = useState<number[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [userAccId, setUserAccId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadRecipes() {
@@ -60,11 +62,64 @@ export function UserPortal({ onLogout }: UserPortalProps) {
         console.error("Failed to load recipes from database, using hardcoded fallback templates.", err);
       }
     }
+
+    async function loadFavorites() {
+      try {
+        const res = await fetch(`${API_BASE}/preferences/favorites`, {
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json(); // List of rcpID strings
+          const numericIds = data
+            .map((rcpID: string) => parseInt(rcpID.replace(/\D/g, ""), 10))
+            .filter((id: number) => !isNaN(id));
+          setFavorites(numericIds);
+        }
+      } catch (err) {
+        console.error("Failed to load favorites from database.", err);
+      }
+    }
+
+    async function loadUser() {
+      try {
+        const res = await fetch(`${API_BASE}/me`, {
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUserAccId(data.accID);
+        }
+      } catch (err) {
+        console.error("Failed to load user info:", err);
+      }
+    }
+
     loadRecipes();
+    loadFavorites();
+    loadUser();
   }, []);
 
-  function toggleFavorite(id: number) {
-    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+  async function toggleFavorite(id: number) {
+    const isAdding = !favorites.includes(id);
+    setFavorites(prev => isAdding ? [...prev, id] : prev.filter(f => f !== id));
+
+    const recipe = recipes.find(r => r.id === id);
+    if (recipe && recipe.rcpId) {
+      try {
+        await fetch(`${API_BASE}/preferences/track`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rcpId: recipe.rcpId,
+            genre: recipe.category,
+            interaction: isAdding ? "save" : "dislike"
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to track favorite toggle:", err);
+      }
+    }
   }
 
   const navItems: { key: Tab; icon: typeof Home; label: string }[] = [
@@ -102,7 +157,7 @@ export function UserPortal({ onLogout }: UserPortalProps) {
       <div className="flex-1 overflow-hidden">
         {tab === "home"      && <HomeScreen    recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
         {tab === "search"    && <SearchScreen  recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "kitchen"   && <KitchenScreen favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "kitchen"   && <KitchenScreen favorites={favorites} onToggleFavorite={toggleFavorite} userAccId={userAccId} />}
         {tab === "favorites" && <FavoritesScreen recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
         {tab === "profile"   && <ProfileScreen onLogout={onLogout} />}
       </div>

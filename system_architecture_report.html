@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chef MAI System Architecture & Technical Report</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Prism.js for code formatting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    
+    <!-- MathJax for rendering LaTeX formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Mermaid.js for drawing diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+                securityLevel: 'loose',
+                flowchart: { useMaxWidth: true, htmlLabels: true }
+            });
+        });
+    </script>
+
+    <style>
+        :root {
+            /* Transitions */
+            --transition-speed: 0.3s;
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-code: 'Fira Code', monospace;
+        }
+
+        /* Dark Theme Variables */
+        [data-theme="dark"] {
+            --bg-base: #0f111a;
+            --bg-surface: #151824;
+            --bg-sidebar: #12141f;
+            --border-color: #222638;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #f5a97f;
+            --primary-rgb: 245, 169, 127;
+            --secondary: #8bd5ca;
+            --accent: #c6a0f6;
+            --accent-rgb: 198, 160, 246;
+            --success: #a6da95;
+            --warning: #eed49f;
+            --error: #ed8796;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --code-bg: #1e2233;
+        }
+
+        /* Light Theme Variables */
+        [data-theme="light"] {
+            --bg-base: #f8fafc;
+            --bg-surface: #ffffff;
+            --bg-sidebar: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --primary: #d97706;
+            --primary-rgb: 217, 119, 6;
+            --secondary: #0d9488;
+            --accent: #7c3aed;
+            --accent-rgb: 124, 58, 237;
+            --success: #16a34a;
+            --warning: #d97706;
+            --error: #dc2626;
+            --shadow: rgba(99, 99, 99, 0.1);
+            --code-bg: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        /* App Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Style */
+        aside {
+            width: 300px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            padding: 2rem 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            z-index: 100;
+            transition: background-color var(--transition-speed), border-color var(--transition-speed);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .logo i {
+            font-size: 1.8rem;
+        }
+
+        .toc-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toc-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.6rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover, .toc-link.active {
+            color: var(--text-main);
+            background-color: var(--bg-surface);
+            box-shadow: 0 4px 6px -1px var(--shadow);
+        }
+
+        .toc-link.active {
+            border-left: 3px solid var(--primary);
+            padding-left: calc(0.8rem - 3px);
+        }
+
+        /* Theme Toggle & Controls */
+        .controls {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .btn-theme {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 6px -1px var(--shadow);
+            transition: all 0.2s ease;
+        }
+
+        .btn-theme:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Main Content Style */
+        main {
+            margin-left: 300px;
+            flex: 1;
+            padding: 3rem 4rem;
+            max-width: 1200px;
+        }
+
+        header {
+            margin-bottom: 3.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 2rem;
+        }
+
+        .tag-pill {
+            display: inline-block;
+            background-color: rgba(var(--primary-rgb), 0.15);
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1.15;
+            color: var(--text-main);
+            margin-bottom: 0.75rem;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Documentation Sections */
+        section {
+            margin-bottom: 4rem;
+            scroll-margin-top: 2rem;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .section-title i {
+            color: var(--accent);
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        /* Cards and Lists */
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px var(--shadow);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px var(--shadow);
+        }
+
+        .card h4 {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card h4 i {
+            color: var(--primary);
+        }
+
+        /* Lists styling */
+        ul.custom-list {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        ul.custom-list li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        ul.custom-list li::before {
+            content: "✦";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        /* Math container */
+        .math-container {
+            background-color: rgba(var(--accent-rgb), 0.03);
+            border-left: 4px solid var(--accent);
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+
+        /* Tables styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            background-color: var(--bg-surface);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px var(--shadow);
+        }
+
+        th, td {
+            padding: 0.75rem 1.25rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: rgba(var(--primary-rgb), 0.1);
+            color: var(--text-main);
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+            color: var(--text-main);
+        }
+
+        /* Code block wrapper styling */
+        pre {
+            background-color: var(--code-bg) !important;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        code {
+            font-family: var(--font-code) !important;
+            font-size: 0.9rem !important;
+        }
+
+        /* Alert Callouts */
+        .alert-box {
+            display: flex;
+            gap: 1rem;
+            background-color: rgba(var(--primary-rgb), 0.05);
+            border-left: 4px solid var(--primary);
+            padding: 1rem 1.5rem;
+            border-radius: 6px;
+            margin: 1.5rem 0;
+        }
+
+        .alert-icon {
+            color: var(--primary);
+            font-size: 1.3rem;
+        }
+
+        /* Calculator Widget */
+        .calculator-widget {
+            background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--primary-rgb), 0.05) 100%);
+            border: 1.5px solid var(--primary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 2rem;
+            box-shadow: 0 10px 20px -5px var(--shadow);
+        }
+
+        .calc-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .calc-header h3 {
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            color: var(--text-main);
+        }
+
+        .calc-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .calc-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .calc-sliders {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .slider-label span:last-child {
+            color: var(--primary);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: var(--border-color);
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.5);
+            transition: transform 0.1s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .calc-result {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .score-circle {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary) 0%, var(--border-color) 0%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        .score-circle::before {
+            content: "";
+            position: absolute;
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background-color: var(--bg-surface);
+        }
+
+        .score-text {
+            position: relative;
+            z-index: 10;
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .formula-summary {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-family: var(--font-code);
+        }
+
+        /* Mermaid Wrapper */
+        .diagram-container {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            margin: 1.5rem 0;
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            box-shadow: 0 4px 6px -1px var(--shadow);
+        }
+
+        .mermaid {
+            width: 100%;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside>
+            <div class="logo">
+                <i class="fa-solid fa-kitchen-set"></i>
+                <span>Chef MAI</span>
+            </div>
+            
+            <ul class="toc-menu">
+                <li><a href="#overview" class="toc-link active"><i class="fa-solid fa-house"></i> Overview</a></li>
+                <li><a href="#computer-vision" class="toc-link"><i class="fa-solid fa-eye"></i> Computer Vision</a></li>
+                <li><a href="#naive-bayes" class="toc-link"><i class="fa-solid fa-calculator"></i> Naive Bayes</a></li>
+                <li><a href="#bayesian-learning" class="toc-link"><i class="fa-solid fa-brain"></i> Bayesian Preference</a></li>
+                <li><a href="#substitutions" class="toc-link"><i class="fa-solid fa-arrows-rotate"></i> Smart Substitutions</a></li>
+                <li><a href="#architecture" class="toc-link"><i class="fa-solid fa-sitemap"></i> System & Data Flow</a></li>
+                <li><a href="#metrics" class="toc-link"><i class="fa-solid fa-chart-line"></i> Data Metrics</a></li>
+            </ul>
+
+            <div class="controls">
+                <button class="btn-theme" onclick="toggleTheme()">
+                    <i class="fa-solid fa-sun" id="theme-icon"></i>
+                    <span id="theme-text">Toggle Theme</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Body -->
+        <main>
+            <header>
+                <span class="tag-pill">Architecture Blueprint</span>
+                <h1>System Architecture & Technical Report</h1>
+                <p class="subtitle">A detailed engineering study of Chef MAI's vision pipelines, machine learning matching formulas, and live feedback metrics.</p>
+            </header>
+
+            <!-- 1. Overview -->
+            <section id="overview">
+                <h2 class="section-title"><i class="fa-solid fa-compass"></i> System Overview</h2>
+                <p>
+                    <strong>Chef MAI</strong> is an intelligent kitchen assistant designed to minimize food waste and optimize domestic meal planning. By incorporating computer vision (for item extraction), custom suitability classification (via Naive Bayes), and sequential user interaction profiling (via Bayesian learning), the system recommends recipes tailored both to the physical ingredients available in a user's fridge and their personal dining history.
+                </p>
+                <div class="alert-box">
+                    <div class="alert-icon"><i class="fa-solid fa-info-circle"></i></div>
+                    <div>
+                        <p style="margin: 0; font-size: 0.9rem; color: var(--text-main);">
+                            The Ktor (Kotlin) backend and Python FastAPI CV servers act in symbiosis, serving custom recommendation responses directly to a Vite React client dashboard.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Computer Vision -->
+            <section id="computer-vision">
+                <h2 class="section-title"><i class="fa-solid fa-eye"></i> Computer Vision (CLIP Ingredient Detection)</h2>
+                <p>
+                    The ingredient classification pipeline is managed by a standalone Python FastAPI service. Rather than utilizing standard bounding-box object detectors (e.g. standard YOLOv8) which struggle with novel or fine-grained ingredient categories without substantial domain datasets, Chef MAI implements an <strong>open-vocabulary semantic matching model</strong> leveraging OpenAI's <strong>CLIP</strong> (specifically `ViT-B/32`).
+                </p>
+
+                <div class="card">
+                    <h4><i class="fa-solid fa-gears"></i> Open-Vocabulary Search Space</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">
+                        The model cross-references incoming visual streams with strings matching three key food categories:
+                    </p>
+                    <table style="margin-top: 0.5rem; margin-bottom: 0;">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Vocabularies Evaluated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Proteins</strong></td>
+                                <td>chicken, pork, beef, fish, shrimp, crab, egg, tofu</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Vegetables</strong></td>
+                                <td>onion, garlic, tomato, carrot, potato, bell pepper, cabbage, lettuce, spinach, broccoli, cauliflower, eggplant, cucumber, zucchini, green beans, corn, peas</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fruits</strong></td>
+                                <td>apple, banana, orange, lemon, lime, grapefruit, pear, peach, plum, apricot, mango, pineapple, watermelon, cantaloupe, honeydew, kiwi, cherry, grape, etc.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p>
+                    For an uploaded image, the CLIP model determines semantic affinity scores between the image features and text features representing candidate labels:
+                </p>
+
+                <div class="math-container">
+                    $$\mathbf{x}_{\text{image}} \leftarrow \text{Preprocess}(\text{Image})$$
+                    $$\mathbf{t}_i = \text{tokenize}(\text{"a photo of ingredients including } \text{ingredient}_i\text{"}) \quad \forall i \in \{1, \dots, N\}$$
+                    $$P(\text{ingredient}_i \mid \text{image}) = \text{Softmax}(\text{CLIP}(\mathbf{x}_{\text{image}}, \mathbf{t}_1, \dots, \mathbf{t}_N))_i$$
+                    $$\mathcal{D} = \{\text{ingredient}_i \mid P(\text{ingredient}_i \mid \text{image}) > 0.10\}$$
+                </div>
+
+                <p>
+                    FastAPI handles the model execution. On the backend, Ktor calls this service asynchronously using <code>CIO HttpClient</code>:
+                </p>
+                <pre><code class="language-kotlin">suspend fun detectIngredients(imageBytes: ByteArray): String {
+    val response = client.post("$baseUrl/detect") {
+        setBody(MultiPartFormDataContent(formData {
+            append("file", imageBytes, Headers.build {
+                append(HttpHeaders.ContentType, "image/jpeg")
+                append(HttpHeaders.ContentDisposition, "filename=image.jpg")
+            })
+        }))
+    }
+    return response.bodyAsText()
+}</code></pre>
+            </section>
+
+            <!-- 3. Naive Bayes -->
+            <section id="naive-bayes">
+                <h2 class="section-title"><i class="fa-solid fa-calculator"></i> Naive Bayes Suitability Classification</h2>
+                <p>
+                    The <code>NaiveBayesService</code> classifies recipes as <code>suitable</code> or <code>unsuitable</code> for a user. By evaluating specific categorical dimensions of a recipe (independent of direct rating counts), it models generalized user compatibility.
+                </p>
+
+                <div class="card">
+                    <h4><i class="fa-solid fa-cube"></i> Extracted Classification Features</h4>
+                    <ul class="custom-list" style="margin-bottom: 0;">
+                        <li><strong>Genre Flag:</strong> e.g., <code>genre:asian</code>, <code>genre:italian</code>, <code>genre:american</code>.</li>
+                        <li><strong>Jaccard Match Score Bucket:</strong> <code>match:high</code> (&ge; 80%), <code>match:medium</code> (&ge; 50%), <code>match:low</code> (&ge; 20%), or <code>match:none</code>.</li>
+                        <li><strong>Complexity Bucket:</strong> <code>ingcount:small</code> (&le; 5), <code>ingcount:medium</code> (&le; 10), or <code>ingcount:large</code>.</li>
+                    </ul>
+                </div>
+
+                <p>
+                    Using **Laplace Smoothing** ($\alpha = 1.0$) to calculate features probabilities over a dataset containing $N_{\text{samples}}$:
+                </p>
+
+                <div class="math-container">
+                    $$P(Class) = \frac{count(Class) + \alpha}{N_{\text{samples}} + 2\alpha}$$
+                    $$P(feature_j \mid Class) = \frac{count(feature_j, Class) + \alpha}{count(Class) + \alpha \times N_{\text{unique features}}}$$
+                </div>
+
+                <p>
+                    To avoid decimal underflow, probabilities are summed in log-space:
+                </p>
+                <div class="math-container">
+                    $$\log P(Class \mid \mathbf{f}) = \log P(Class) + \sum_{j=1}^{3} \log P(f_j \mid Class)$$
+                </div>
+
+                <p>
+                    The probabilities are subsequently converted back into standard scale using the **log-sum-exp subtraction trick** to prevent numerical instability:
+                </p>
+                <div class="math-container">
+                    $$P(suitable \mid \mathbf{f}) = \frac{e^{\log P(suitable \mid \mathbf{f}) - M}}{e^{\log P(suitable \mid \mathbf{f}) - M} + e^{\log P(unsuitable \mid \mathbf{f}) - M}}$$
+                    $$\text{where } M = \max(\log P(suitable \mid \mathbf{f}), \log P(unsuitable \mid \mathbf{f}))$$
+                </div>
+            </section>
+
+            <!-- 4. Bayesian Learning -->
+            <section id="bayesian-learning">
+                <h2 class="section-title"><i class="fa-solid fa-brain"></i> Bayesian User Preference Learning</h2>
+                <p>
+                    Rather than employing static profile parameters, Chef MAI uses a dynamic **Beta-Binomial conjugate model** representing the probability $\theta$ that a user will enjoy a given recipe:
+                </p>
+                
+                <div class="math-container">
+                    $$\theta \sim \text{Beta}(\alpha, \beta)$$
+                    $$\text{Prior parameters: } \alpha_{\text{prior}} = 1.0, \quad \beta_{\text{prior}} = 1.0 \quad \text{(Uniform Prior)}$$
+                </div>
+
+                <p>
+                    When a user interacts with the app, the posterior parameters ($\alpha, \beta$) are updated based on positive (success) or negative (failure) interaction logs:
+                </p>
+
+                <table style="margin-bottom: 2rem;">
+                    <thead>
+                        <tr>
+                            <th>User Action</th>
+                            <th>Weight Weight ($W_i$)</th>
+                            <th>Statistical Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Cooked</strong></td>
+                            <td>+3.0</td>
+                            <td>Strong positive signal (adds to $\alpha$)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rated</strong></td>
+                            <td>+2.0 &times; (Stars / 5.0)</td>
+                            <td>Scale-adjusted success signal (adds to $\alpha$)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Liked</strong></td>
+                            <td>+2.0</td>
+                            <td>Moderate positive signal (adds to $\alpha$)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Saved</strong></td>
+                            <td>+1.5</td>
+                            <td>Mild positive signal (adds to $\alpha$)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Viewed</strong></td>
+                            <td>+0.5</td>
+                            <td>Informational context signal (adds to $\alpha$)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Disliked</strong></td>
+                            <td>-2.0</td>
+                            <td>Explicit negative signal (adds $|W_i|$ to $\beta$)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p>
+                    <strong>Belief Revision Equations:</strong> For a target recipe $r$ with genre $G$:
+                </p>
+                <div class="math-container">
+                    $$\alpha_{\text{post}} = 1.0 + (2.0 \times \text{genreAffinity}) + \sum_{i \in \text{Recipe } r} W_i^+ + \sum_{j \in \text{Genre } G} (0.3 \times W_j^+)$$
+                    $$\beta_{\text{post}} = 1.0 + (0.5 \times (1.0 - \text{genreAffinity})) + \sum_{i \in \text{Recipe } r} |W_i^-| + \sum_{j \in \text{Genre } G} (0.3 \times |W_j^-|)$$
+                    $$\text{Preference Score} = E[\theta \mid \text{data}] = \frac{\alpha_{\text{post}}}{\alpha_{\text{post}} + \beta_{\text{post}}}$$
+                </div>
+            </section>
+
+            <!-- 5. Substitutions -->
+            <section id="substitutions">
+                <h2 class="section-title"><i class="fa-solid fa-arrows-rotate"></i> Smart Ingredient Substitutions</h2>
+                <p>
+                    When a recipe lacks required ingredients, the system executes fuzzy string-matching routines on the <code>ingredient_substitutions</code> seeds to find viable, available alternatives.
+                </p>
+                
+                <div class="card">
+                    <h4><i class="fa-solid fa-clipboard-question"></i> Fuzzy Match Logic</h4>
+                    <p style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">
+                        The system checks:
+                        <br>1. If $O$ (original name in table) is contained in $M$ (missing recipe ingredient).
+                        <br>2. If $M$ is contained in $O$.
+                        <br>3. If any individual word in $M$ of length $>2$ is contained in $O$.
+                    </p>
+                </div>
+
+                <p>
+                    For multi-part substitutions (e.g. substituting <strong>heavy cream</strong> with <strong>milk + butter</strong>), the system parses the ingredients string and evaluates whether <em>all</em> split parts are present in the user's current pantry list. The returned list of matched alternatives is sorted by descending confidence.
+                </p>
+            </section>
+
+            <!-- 6. System Architecture -->
+            <section id="architecture">
+                <h2 class="section-title"><i class="fa-solid fa-sitemap"></i> Overall System Architecture & Data Flow</h2>
+                <p>
+                    The systems are organized in a hybrid architecture combining a high-performance HTTP Kotlin backend with a specialized computer vision server.
+                </p>
+
+                <div class="diagram-container">
+                    <div class="mermaid">
+                        graph TD
+                            UI[Vite React Client] -->|1. Request Recs| Routes[Ktor Routes]
+                            Cam[Webcam / Upload] -->|1b. Upload Image| Routes
+                            Routes -->|2. Send Image| FastAPI[FastAPI CLIP Server]
+                            FastAPI -->|3. CLIP Inference| CLIP[CLIP Model - ViT-B/32]
+                            CLIP -->|4. Return Labels| Routes
+                            
+                            Routes -->|5. Run Recommendation| Engine[Recommendation Engine]
+                            Engine -->|6a. Jaccard Match| MS[MatchScoringService]
+                            Engine -->|6b. Categorical Bayes| NBS[NaiveBayesService]
+                            Engine -->|6c. Beta Distribution| BPS[BayesianPreferenceService]
+                            Engine -->|6d. Substitution Search| SS[SubstitutionService]
+                            
+                            NBS & BPS & SS & MS -->|7. Queries| Exposed[Exposed ORM]
+                            Exposed <-->|8. Read/Write| DB[(MySQL 9.3 Database)]
+                            
+                            Engine -->|9. Write Logs| Exposed
+                            Routes -->|10. JSON Response| UI
+                            
+                            style UI fill:#cad3f5,stroke:#24273a,color:#1e293b
+                            style Routes fill:#8bd5ca,stroke:#222638,color:#1e293b
+                            style Engine fill:#c6a0f6,stroke:#222638,color:#1e293b
+                            style DB fill:#f5a97f,stroke:#222638,color:#1e293b
+                    </div>
+                </div>
+
+                <div class="calculator-widget">
+                    <div class="calc-header">
+                        <i class="fa-solid fa-sliders" style="color: var(--primary); font-size: 1.5rem;"></i>
+                        <h3>Recommendation Score Simulator</h3>
+                    </div>
+                    <div class="calc-grid">
+                        <div class="calc-sliders">
+                            <div class="slider-group">
+                                <div class="slider-label">
+                                    <span>Ingredient Match Score (Weight: 50%)</span>
+                                    <span id="match-val">0.50</span>
+                                </div>
+                                <input type="range" id="match-range" min="0" max="1" step="0.01" value="0.50" oninput="updateScore()">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-label">
+                                    <span>Naive Bayes Suitability (Weight: 30%)</span>
+                                    <span id="nb-val">0.50</span>
+                                </div>
+                                <input type="range" id="nb-range" min="0" max="1" step="0.01" value="0.50" oninput="updateScore()">
+                            </div>
+                            <div class="slider-group">
+                                <div class="slider-label">
+                                    <span>Bayesian Preference (Weight: 20%)</span>
+                                    <span id="pref-val">0.50</span>
+                                </div>
+                                <input type="range" id="pref-range" min="0" max="1" step="0.01" value="0.50" oninput="updateScore()">
+                            </div>
+                        </div>
+                        <div class="calc-result">
+                            <div class="score-circle" id="score-circle">
+                                <div class="score-text" id="score-display">0.5000</div>
+                            </div>
+                            <p style="font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">Final Recommendation Score</p>
+                            <span class="formula-summary">0.5*(IM) + 0.3*(NB) + 0.2*(BP)</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. Data Metrics -->
+            <section id="metrics">
+                <h2 class="section-title"><i class="fa-solid fa-chart-line"></i> Data Metrics & Regression Testing</h2>
+                <p>
+                    Every recommendation generates a row in <code>recommendation_logs</code>. Users' interactions dynamically update the <code>user_feedback</code> state from <code>ignored</code> to <code>accepted</code> or <code>cooked</code>.
+                </p>
+
+                <p>
+                    Using these signals, the <code>MetricsService</code> aggregates logged values to evaluate recommendation performance:
+                </p>
+
+                <div class="card">
+                    <h4><i class="fa-solid fa-square-poll-vertical"></i> Core Operational Formulas</h4>
+                    <p style="margin-bottom: 1rem;">
+                        Let $TP$ (True Positives) = sum of <code>accepted</code> and <code>cooked</code> recommendations, $FP$ (False Positives) = sum of <code>rejected</code> recommendations, and $FN$ (False Negatives) = sum of <code>ignored</code> recommendations:
+                    </p>
+                    <div class="math-container">
+                        $$\text{Precision} = \frac{TP}{TP + FP}$$
+                        $$\text{Recall} = \frac{TP}{TP + FN}$$
+                        $$\text{F1-Score} = 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}$$
+                        $$\text{Precision@K} = \frac{1}{|U|} \sum_{u \in U} \frac{|\text{Top-K recommendations for user } u \text{ with positive interaction}|}{K}$$
+                    </div>
+                </div>
+
+                <p>
+                    <strong>Predefined Scenario Evaluation Harness:</strong> To benchmark the scoring weights over modifications, <code>EvaluationService.kt</code> runs a 30-scenario simulation engine. It creates a dummy profile, simulates queries across match profiles (High, Medium, Low, Missing ingredients, Substitutions), simulates feedback based on match score criteria, and spits out mean, median, min, max, and standard deviation summary metrics to the admin panel.
+                </p>
+            </section>
+        </main>
+    </div>
+
+    <!-- Theme Toggle Scripts -->
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            
+            // Update button styles
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            
+            if (newTheme === 'dark') {
+                icon.className = 'fa-solid fa-sun';
+                text.textContent = 'Toggle Theme';
+            } else {
+                icon.className = 'fa-solid fa-moon';
+                text.textContent = 'Toggle Theme';
+            }
+
+            // Update mermaid themes if possible
+            if (typeof mermaid !== 'undefined') {
+                const elements = document.getElementsByClassName('mermaid');
+                // Reinitialize is required to update styling dynamically, simpler is page reload or keeping dark/light styles inside css variables.
+            }
+        }
+
+        // Live calculator formula update
+        function updateScore() {
+            const matchVal = parseFloat(document.getElementById('match-range').value);
+            const nbVal = parseFloat(document.getElementById('nb-range').value);
+            const prefVal = parseFloat(document.getElementById('pref-range').value);
+
+            document.getElementById('match-val').innerText = matchVal.toFixed(2);
+            document.getElementById('nb-val').innerText = nbVal.toFixed(2);
+            document.getElementById('pref-val').innerText = prefVal.toFixed(2);
+
+            const finalScore = (0.50 * matchVal) + (0.30 * nbVal) + (0.20 * prefVal);
+            document.getElementById('score-display').innerText = finalScore.toFixed(4);
+
+            // Update circular progress visual
+            const pct = finalScore * 100;
+            const circle = document.getElementById('score-circle');
+            circle.style.background = `conic-gradient(var(--primary) 0% ${pct}%, var(--border-color) ${pct}% 100%)`;
+        }
+
+        // Initialize calculator
+        updateScore();
+
+        // Active link tracking during scroll
+        const sections = document.querySelectorAll('section');
+        const navLinks = document.querySelectorAll('.toc-link');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (pageYOffset >= (sectionTop - 150)) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href').slice(1) === current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+    
+    <!-- Prism.js core + dependencies for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+</body>
+</html>

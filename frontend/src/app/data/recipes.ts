@@ -19,6 +19,7 @@ export interface Recipe {
   prereqNote?: string;
   isUserSubmitted?: boolean;
   reported?: boolean;
+  rcpId?: string;
 }
 
 export const RECIPES: Recipe[] = [
