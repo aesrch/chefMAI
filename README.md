@@ -163,7 +163,22 @@ Ensure MySQL is running, then log in to your MySQL client and create the databas
 ```sql
 CREATE DATABASE IF NOT EXISTS cookingdb;
 ```
-Run the database migrations in order:
+Import the core schema and seed data from the `sql/` directory in the correct dependency order:
+```bash
+# 1. Create independent tables (imgtable and acctable)
+mysql -u root -p cookingdb < sql/cookingdb_imgtable.sql
+mysql -u root -p cookingdb < sql/cookingdb_acctable.sql
+
+# 2. Create the recipes table (depends on acctable and imgtable)
+mysql -u root -p cookingdb < sql/cookingdb_rcptable.sql
+
+# 3. Create rating, bookmarks, and stored routines (depend on acctable and rcptable)
+mysql -u root -p cookingdb < sql/cookingdb_ratetable.sql
+mysql -u root -p cookingdb < sql/cookingdb_rcpcoltable.sql
+mysql -u root -p cookingdb < sql/cookingdb_routines.sql
+```
+
+Then, run the database migrations in order:
 ```bash
 mysql -u root -p cookingdb < backend/migrations/V001__create_ingredient_substitutions.sql
 mysql -u root -p cookingdb < backend/migrations/V001b__seed_substitutions.sql

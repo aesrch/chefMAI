@@ -124,16 +124,26 @@ All migrations in: `backend/migrations/`
 ---
 
 ### 1. Database Setup
-Make sure MySQL is running, then create the database and run migrations:
+Make sure MySQL is running, then create the database:
 
 ```sql
 -- In MySQL client:
 CREATE DATABASE IF NOT EXISTS cookingdb;
 ```
 
-Migrations are in `backend/migrations/`. Run them in order:
+Import the core schema and seed data from the `sql/` directory in the correct dependency order:
 ```powershell
 # From the project root, connect to MySQL and source each file:
+mysql -u root -p cookingdb < sql/cookingdb_imgtable.sql
+mysql -u root -p cookingdb < sql/cookingdb_acctable.sql
+mysql -u root -p cookingdb < sql/cookingdb_rcptable.sql
+mysql -u root -p cookingdb < sql/cookingdb_ratetable.sql
+mysql -u root -p cookingdb < sql/cookingdb_rcpcoltable.sql
+mysql -u root -p cookingdb < sql/cookingdb_routines.sql
+```
+
+Then, run the database migrations in `backend/migrations/` in order:
+```powershell
 mysql -u root -p cookingdb < backend/migrations/V001__create_ingredient_substitutions.sql
 mysql -u root -p cookingdb < backend/migrations/V001b__seed_substitutions.sql
 mysql -u root -p cookingdb < backend/migrations/V002__create_nb_model_params.sql
