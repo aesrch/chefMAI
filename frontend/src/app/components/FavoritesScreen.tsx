@@ -6,11 +6,13 @@ import { RecipeDetail } from "./RecipeDetail";
 interface FavoritesScreenProps {
   favorites: number[];
   onToggleFavorite: (id: number) => void;
+  recipes?: typeof RECIPES;
 }
 
-export function FavoritesScreen({ favorites, onToggleFavorite }: FavoritesScreenProps) {
+export function FavoritesScreen({ favorites, onToggleFavorite, recipes = [] }: FavoritesScreenProps) {
+  const activeRecipes = recipes.length > 0 ? recipes : RECIPES;
   const [selectedRecipe, setSelectedRecipe] = useState<typeof RECIPES[0] | null>(null);
-  const savedRecipes = RECIPES.filter(r => favorites.includes(r.id));
+  const savedRecipes = activeRecipes.filter(r => favorites.includes(r.id));
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "var(--font-body)" }}>

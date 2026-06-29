@@ -6,9 +6,10 @@ import { RecipeDetail } from "./RecipeDetail";
 interface SearchScreenProps {
   favorites: number[];
   onToggleFavorite: (id: number) => void;
+  recipes?: Recipe[];
 }
 
-export function SearchScreen({ favorites, onToggleFavorite }: SearchScreenProps) {
+export function SearchScreen({ favorites, onToggleFavorite, recipes = [] }: SearchScreenProps) {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
@@ -16,7 +17,9 @@ export function SearchScreen({ favorites, onToggleFavorite }: SearchScreenProps)
   const [showFilters, setShowFilters] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
-  const filtered = RECIPES.filter(r => {
+  const activeRecipes = recipes.length > 0 ? recipes : RECIPES;
+
+  const filtered = activeRecipes.filter(r => {
     const matchQuery = !query || r.title.toLowerCase().includes(query.toLowerCase()) ||
       r.ingredients.some(i => i.name.toLowerCase().includes(query.toLowerCase())) ||
       r.tags.some(t => t.toLowerCase().includes(query.toLowerCase()));

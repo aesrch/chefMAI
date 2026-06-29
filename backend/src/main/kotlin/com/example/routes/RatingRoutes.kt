@@ -15,7 +15,10 @@ import com.example.dto.rating.AverageRatingDto
 
 
 
-fun Route.ratingRoutes() {
+import com.example.service.BayesianPreferenceService
+import com.example.repository.RcpRepository
+
+fun Route.ratingRoutes(prefService: BayesianPreferenceService, rcpRepo: RcpRepository) {
 
     val ratingRepo = RatingRepository()
 
@@ -36,6 +39,18 @@ fun Route.ratingRoutes() {
                 rateStar = dto.rateStar,
                 rateText = dto.rateText
             )
+
+            // Track interaction for preference scoring
+            val recipe = rcpRepo.getRecipeByID(rcpID)
+            if (recipe != null) {
+                prefService.trackInteraction(
+                    accId = session.accID,
+                    rcpId = rcpID,
+                    genre = recipe.genre,
+                    interaction = "rate",
+                    ratingValue = dto.rateStar
+                )
+            }
 
             call.respond(HttpStatusCode.Created, "Rating created")
         } catch (e: Exception) {

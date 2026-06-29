@@ -20,18 +20,27 @@ fun Route.authRoutes() {
     post("/signup") {
         val req = call.receive<SignupRequest>()
 
+        if (accRepository.findByUsername(req.accUserName) != null) {
+            call.respond(HttpStatusCode.Conflict, "Username is already taken")
+            return@post
+        }
+
         val hashedPass = BCrypt.hashpw(req.accPass, BCrypt.gensalt())
 
-        accRepository.createAccount(
-            accName = req.accName,
-            accUserName = req.accUserName,
-            hashedPass = hashedPass,
-            accPresentation = req.accPresentation,
-            accLink = req.accLink,
-            imgID = req.imgID
-        )
-
-        call.respond(HttpStatusCode.Created, "Signup successful")
+        try {
+            accRepository.createAccount(
+                accName = req.accName,
+                accUserName = req.accUserName,
+                hashedPass = hashedPass,
+                accPresentation = req.accPresentation,
+                accLink = req.accLink,
+                imgID = req.imgID
+            )
+            call.respond(HttpStatusCode.Created, "Signup successful")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            call.respond(HttpStatusCode.InternalServerError, "Signup failed: ${e.message}")
+        }
     }
 
     post("/login") {

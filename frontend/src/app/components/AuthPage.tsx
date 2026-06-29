@@ -20,10 +20,119 @@ export function AuthPage({ defaultMode = "user", onUserLogin, onAdminLogin, onBa
   const isAdmin = mode === "admin-login";
   const isRegister = mode === "user-register";
 
-  function handleSubmit(e: React.FormEvent) {
+  const API_BASE = "http://localhost:8080";
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isAdmin) onAdminLogin();
-    else onUserLogin();
+
+    if (isRegister) {
+      try {
+        const res = await fetch(`${API_BASE}/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accName: name || "Cook",
+            accUserName: email,
+            accPass: password,
+            accPresentation: "Home Cook",
+            accLink: "",
+            imgID: null
+          })
+        });
+
+        if (res.ok) {
+          alert("Registration successful! Please sign in with your credentials.");
+          setMode("user-login");
+        } else {
+          const text = await res.text();
+          alert(`Registration failed: ${text}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Could not connect to the backend server.");
+      }
+    } else {
+      try {
+        const res = await fetch(`${API_BASE}/login`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accUserName: email,
+            accPass: password
+          })
+        });
+
+        if (res.ok) {
+          if (isAdmin) {
+            onAdminLogin();
+          } else {
+            onUserLogin();
+          }
+        } else {
+          const text = await res.text();
+          alert(`Login failed: ${text}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Could not connect to the backend server.");
+      }
+    }
+  }
+
+  async function handleSocialLogin() {
+    const socialEmail = "testuser@chefmai.app";
+    const socialPass = "testpassword123";
+
+    try {
+      let res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accUserName: socialEmail,
+          accPass: socialPass
+        })
+      });
+
+      if (res.ok) {
+        onUserLogin();
+        return;
+      }
+
+      // If test account doesn't exist, sign up and try again
+      res = await fetch(`${API_BASE}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accName: "Test User",
+          accUserName: socialEmail,
+          accPass: socialPass,
+          accPresentation: "Social Login Test User",
+          accLink: "",
+          imgID: null
+        })
+      });
+
+      res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accUserName: socialEmail,
+          accPass: socialPass
+        })
+      });
+
+      if (res.ok) {
+        onUserLogin();
+      } else {
+        alert("Failed to log in with test user credentials.");
+      }
+    } catch (err) {
+      console.error("Social login mapping error:", err);
+      onUserLogin();
+    }
   }
 
   return (
@@ -186,7 +295,7 @@ export function AuthPage({ defaultMode = "user", onUserLogin, onAdminLogin, onBa
                   {["Google", "Apple"].map(provider => (
                     <button
                       key={provider}
-                      onClick={onUserLogin}
+                      onClick={handleSocialLogin}
                       className="py-3 rounded-xl border transition-all hover:opacity-80"
                       style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: "0.875rem", fontWeight: 500 }}
                     >

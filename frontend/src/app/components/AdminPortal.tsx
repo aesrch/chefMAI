@@ -3,10 +3,11 @@ import {
   LayoutDashboard, Users, MessageSquare, LogOut,
   TrendingUp, ShieldCheck, AlertTriangle, CheckCircle,
   MoreVertical, Search, Flag, Trash2, Eye, ChevronDown, Star,
-  UserCheck, UserX, Filter, Target, Crosshair, Activity, BarChart2
+  UserCheck, UserX, Filter, Target, Crosshair, Activity, BarChart2, BarChart3, FlaskConical
 } from "lucide-react";
+import { MetricsDashboard } from "./MetricsDashboard";
 
-type AdminTab = "dashboard" | "users" | "reviews";
+type AdminTab = "dashboard" | "users" | "reviews" | "metrics" | "evaluation";
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -97,6 +98,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     { key: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { key: "users", icon: Users, label: "Users" },
     { key: "reviews", icon: MessageSquare, label: "Reviews" },
+    { key: "metrics", icon: BarChart3, label: "Metrics" },
+    { key: "evaluation", icon: FlaskConical, label: "Evaluation" },
   ];
 
   return (
@@ -194,6 +197,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           {tab === "dashboard" && <DashboardTab />}
           {tab === "users" && <UsersTab search={userSearch} setSearch={setUserSearch} />}
           {tab === "reviews" && <ReviewsTab />}
+          {tab === "metrics" && <MetricsDashboard />}
+          {tab === "evaluation" && <MetricsDashboard initialTab="evaluation" />}
         </div>
 
         {/* Mobile bottom nav */}
@@ -367,11 +372,11 @@ function DashboardTab() {
           {/* Per-category breakdown */}
           <div className="col-span-3 space-y-3">
             {[
-              { category: "Italian",   score: 91, count: 2140 },
-              { category: "Thai",      score: 86, count: 1830 },
-              { category: "Healthy",   score: 88, count: 1560 },
-              { category: "Mexican",   score: 79, count: 980  },
-              { category: "Dessert",   score: 74, count: 4100 },
+              { category: "Italian", score: 91, count: 2140 },
+              { category: "Thai", score: 86, count: 1830 },
+              { category: "Healthy", score: 88, count: 1560 },
+              { category: "Mexican", score: 79, count: 980 },
+              { category: "Dessert", score: 74, count: 4100 },
             ].map(({ category, score, count }) => {
               const color = score >= 88 ? "var(--foreground)" : score >= 80 ? "var(--primary)" : "var(--accent)";
               return (

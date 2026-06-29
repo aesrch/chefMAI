@@ -60,6 +60,19 @@ fun Route.recipeRoutes() {
     call.respond(HttpStatusCode.Accepted, "Recipe deleted successfully!")
   }
 
+  get("/all") {
+    try {
+      val recipes = recRepository.getAllRecipes()
+      call.respond(recipes)
+    } catch (e: Exception) {
+      e.printStackTrace()
+      call.respond(
+        HttpStatusCode.InternalServerError,
+        "Failed to retrieve recipes: ${e.message}"
+      )
+    }
+  }
+
   // url looks like  GET /recipes/{id}
   get("{id}") {
     val recipeID = call.parameters["id"]

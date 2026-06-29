@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Home, Search, UtensilsCrossed, Bookmark, User } from "lucide-react";
 import { HomeScreen } from "./HomeScreen";
 import { SearchScreen } from "./SearchScreen";
 import { KitchenScreen } from "./KitchenScreen";
 import { FavoritesScreen } from "./FavoritesScreen";
 import { ProfileScreen } from "./ProfileScreen";
+import { Recipe } from "../data/recipes";
+
+const API_BASE = "http://localhost:8080";
 
 type Tab = "home" | "search" | "kitchen" | "favorites" | "profile";
 
@@ -12,12 +15,111 @@ interface UserPortalProps {
   onLogout: () => void;
 }
 
+export function backendToFrontendRecipe(r: any, idx: number): Recipe {
+  const numericId = parseInt(r.rcpID.replace(/\D/g, ""), 10) || (idx + 100);
+  return {
+    id: numericId,
+    title: r.name,
+    author: "Chef MAI",
+    authorAvatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop",
+    image: r.img ? (r.img.startsWith("http") ? r.img : `${API_BASE}/images/${r.img}`) : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop",
+    category: r.genre || "All",
+    tags: [r.genre || "General"],
+    time: 30,
+    difficulty: "Medium",
+    rating: 4.5,
+    reviews: 120,
+    likes: 340,
+    description: r.description || "",
+    ingredients: r.ingredients.map((name: string, i: number) => ({
+      name: name.trim(),
+      amount: r.amount[i] ? r.amount[i].trim() : "1 unit",
+    })),
+    steps: r.steps.map((step: string) => step.trim()),
+    calories: 450,
+    servings: 2,
+    isUserSubmitted: r.accID !== "admin",
+    rcpId: r.rcpID,
+  };
+}
+
 export function UserPortal({ onLogout }: UserPortalProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [userAccId, setUserAccId] = useState<string | null>(null);
 
-  function toggleFavorite(id: number) {
-    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+  useEffect(() => {
+    async function loadRecipes() {
+      try {
+        const res = await fetch(`${API_BASE}/recipes/all`);
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((r: any, idx: number) => backendToFrontendRecipe(r, idx));
+          setRecipes(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load recipes from database, using hardcoded fallback templates.", err);
+      }
+    }
+
+    async function loadFavorites() {
+      try {
+        const res = await fetch(`${API_BASE}/preferences/favorites`, {
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json(); // List of rcpID strings
+          const numericIds = data
+            .map((rcpID: string) => parseInt(rcpID.replace(/\D/g, ""), 10))
+            .filter((id: number) => !isNaN(id));
+          setFavorites(numericIds);
+        }
+      } catch (err) {
+        console.error("Failed to load favorites from database.", err);
+      }
+    }
+
+    async function loadUser() {
+      try {
+        const res = await fetch(`${API_BASE}/me`, {
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUserAccId(data.accID);
+        }
+      } catch (err) {
+        console.error("Failed to load user info:", err);
+      }
+    }
+
+    loadRecipes();
+    loadFavorites();
+    loadUser();
+  }, []);
+
+  async function toggleFavorite(id: number) {
+    const isAdding = !favorites.includes(id);
+    setFavorites(prev => isAdding ? [...prev, id] : prev.filter(f => f !== id));
+
+    const recipe = recipes.find(r => r.id === id);
+    if (recipe && recipe.rcpId) {
+      try {
+        await fetch(`${API_BASE}/preferences/track`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rcpId: recipe.rcpId,
+            genre: recipe.category,
+            interaction: isAdding ? "save" : "dislike"
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to track favorite toggle:", err);
+      }
+    }
   }
 
   const navItems: { key: Tab; icon: typeof Home; label: string }[] = [
@@ -53,10 +155,10 @@ export function UserPortal({ onLogout }: UserPortalProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {tab === "home"      && <HomeScreen    favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "search"    && <SearchScreen  favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "kitchen"   && <KitchenScreen favorites={favorites} onToggleFavorite={toggleFavorite} />}
-        {tab === "favorites" && <FavoritesScreen favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "home"      && <HomeScreen    recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "search"    && <SearchScreen  recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
+        {tab === "kitchen"   && <KitchenScreen favorites={favorites} onToggleFavorite={toggleFavorite} userAccId={userAccId} />}
+        {tab === "favorites" && <FavoritesScreen recipes={recipes} favorites={favorites} onToggleFavorite={toggleFavorite} />}
         {tab === "profile"   && <ProfileScreen onLogout={onLogout} />}
       </div>
 
